@@ -1,0 +1,23 @@
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Disposable local files
+*.log
+.cache/
+coverage/
+.DS_Store
+Thumbs.db
+
+# Bundled external tools (install separately)
+/node
+/gh
+/rg
+/ssh-keygen
+/cursorsandbox
+/tools/origin
+/tmux-root/
+
+# Keep shipped bundles, SDKs, native modules and dependency directories.
+# package.json does not specify dependencies for reinstalling them.
