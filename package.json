@@ -1,6 +1,18 @@
 {
-  "name": "@anysphere/exec-daemon-runtime",
+  "name": "grok-bot-exec-daemon",
+  "version": "0.0.0",
   "private": true,
-  "gitCommit": "unknown",
-  "buildTimestamp": "2026-10-01T21:30:36.601Z"
+  "description": "A maintainable project around a provenance-pinned exec-daemon runtime snapshot",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm run verify:snapshot && npm run lint && npm test && npm run build && npm run verify:build",
+    "lint": "node tools/check-syntax.mjs",
+    "doctor": "node tools/doctor.mjs",
+    "recover": "node tools/recover.mjs",
+    "verify:snapshot": "node tools/verify-snapshot.mjs",
+    "verify:build": "node tools/verify-build.mjs",
+    "verify:reproduction": "node tools/verify-reproduction.mjs"
+  }
 }

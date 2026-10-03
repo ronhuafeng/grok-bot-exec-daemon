@@ -1,23 +1,16 @@
-# Local secrets
+# Generated project output and local development state
+/dist/
+/node_modules/
+/.work/
+/coverage/
+/.cache/
+*.log
+.DS_Store
+Thumbs.db
+
+# Never commit credentials or machine-specific runtime configuration
 .env
 .env.*
 !.env.example
 
-# Disposable local files
-*.log
-.cache/
-coverage/
-.DS_Store
-Thumbs.db
-
-# Bundled external tools (install separately)
-/node
-/gh
-/rg
-/ssh-keygen
-/cursorsandbox
-/tools/origin
-/tmux-root/
-
-# Keep shipped bundles, SDKs, native modules and dependency directories.
-# package.json does not specify dependencies for reinstalling them.
+# The imported vendor tree, including its node_modules, is intentional.
