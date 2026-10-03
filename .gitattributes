@@ -1,0 +1,9 @@
+* text=auto
+*.mjs text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+bin/* text eol=lf
+# These must come last: generic extension rules also match vendor paths.
+# Preserve all imported bytes and recovered module line endings exactly.
+vendor/exec-daemon-runtime/** -text -diff !eol
+src/recovered/*.cjs -text

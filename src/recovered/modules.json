@@ -1,0 +1,86 @@
+[
+  {
+    "id": "./src/artifactUploads.ts",
+    "file": "artifactUploads.cjs"
+  },
+  {
+    "id": "./src/bundledToolPath.ts",
+    "file": "bundledToolPath.cjs"
+  },
+  {
+    "id": "./src/comma-separated-names.ts",
+    "file": "comma-separated-names.cjs"
+  },
+  {
+    "id": "./src/fuseLiveness.ts",
+    "file": "fuseLiveness.cjs"
+  },
+  {
+    "id": "./src/git.ts",
+    "file": "git.cjs"
+  },
+  {
+    "id": "./src/index.ts",
+    "file": "index.cjs"
+  },
+  {
+    "id": "./src/logger.ts",
+    "file": "logger.cjs"
+  },
+  {
+    "id": "./src/machine-resources.ts",
+    "file": "machine-resources.cjs"
+  },
+  {
+    "id": "./src/managed-environment.ts",
+    "file": "managed-environment.cjs"
+  },
+  {
+    "id": "./src/mcp-token-storage.ts",
+    "file": "mcp-token-storage.cjs"
+  },
+  {
+    "id": "./src/refresh-git-token.ts",
+    "file": "refresh-git-token.cjs"
+  },
+  {
+    "id": "./src/request-context-disk-cache.ts",
+    "file": "request-context-disk-cache.cjs"
+  },
+  {
+    "id": "./src/ring-buffer.ts",
+    "file": "ring-buffer.cjs"
+  },
+  {
+    "id": "./src/secretRedaction.ts",
+    "file": "secretRedaction.cjs"
+  },
+  {
+    "id": "./src/serveCommand.ts",
+    "file": "serveCommand.cjs"
+  },
+  {
+    "id": "./src/server.ts",
+    "file": "server.cjs"
+  },
+  {
+    "id": "./src/setup.ts",
+    "file": "setup.cjs"
+  },
+  {
+    "id": "./src/startup-traceparent.ts",
+    "file": "startup-traceparent.cjs"
+  },
+  {
+    "id": "./src/tmux-session-manager.ts",
+    "file": "tmux-session-manager.cjs"
+  },
+  {
+    "id": "./src/tracing.ts",
+    "file": "tracing.cjs"
+  },
+  {
+    "id": "./src/workspace-discovery.ts",
+    "file": "workspace-discovery.cjs"
+  }
+]
