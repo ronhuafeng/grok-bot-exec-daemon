@@ -3,16 +3,29 @@
   "version": "0.0.0",
   "private": true,
   "description": "A maintainable project around a provenance-pinned exec-daemon runtime snapshot",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": "^22.20.0 || >=24.3.0"
+  },
   "scripts": {
-    "build": "node tools/build.mjs",
-    "test": "node --test tests/*.test.mjs",
-    "check": "npm run verify:snapshot && npm run lint && npm test && npm run build && npm run verify:build",
-    "lint": "node tools/check-syntax.mjs",
-    "doctor": "node tools/doctor.mjs",
-    "recover": "node tools/recover.mjs",
-    "verify:snapshot": "node tools/verify-snapshot.mjs",
-    "verify:build": "node tools/verify-build.mjs",
-    "verify:reproduction": "node tools/verify-reproduction.mjs"
-  }
+    "compile": "node --experimental-strip-types tools/compile.ts",
+    "build": "npm run compile && node dist/project/tools/build.js",
+    "typecheck": "npm run compile && node dist/project/tools/typecheck.js",
+    "lint": "npm run compile && node dist/project/tools/check-syntax.js",
+    "test": "npm run prepare:test && node --experimental-test-module-mocks --test --test-concurrency=2 dist/project/tests/*.test.js",
+    "check": "npm run compile && node dist/project/tools/typecheck.js && node dist/project/tools/generate-proto-contracts.js --check && node dist/project/tools/verify-snapshot.js && node dist/project/tools/check-syntax.js && node dist/project/tools/prepare-tests.js && node --experimental-test-module-mocks --test --test-concurrency=2 dist/project/tests/*.test.js && node dist/project/tools/build.js && node dist/project/tools/verify-build.js",
+    "doctor": "npm run compile && node dist/project/tools/doctor.js",
+    "recover": "npm run compile && node dist/project/tools/recover.js",
+    "generate:contracts": "npm run compile && node dist/project/tools/generate-proto-contracts.js",
+    "verify:contracts": "npm run compile && node dist/project/tools/generate-proto-contracts.js --check",
+    "verify:snapshot": "npm run compile && node dist/project/tools/verify-snapshot.js",
+    "verify:build": "npm run compile && node dist/project/tools/verify-build.js",
+    "prepare:test": "npm run compile && node dist/project/tools/prepare-tests.js"
+  },
+  "devDependencies": {
+    "@commander-js/extra-typings": "15.0.0",
+    "@types/node": "22.20.5",
+    "commander": "15.0.0",
+    "typescript": "6.0.3"
+  },
+  "type": "module"
 }

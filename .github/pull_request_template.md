@@ -1,6 +1,6 @@
 ## Change
 
-Describe the behavior or structural change and the affected recovered modules.
+Describe the behavior or structural change and the affected maintained runtime modules.
 
 ## Verification
 
@@ -9,4 +9,5 @@ Describe the behavior or structural change and the affected recovered modules.
 - [ ] Vendor bytes, modes and notices are unchanged, or a separately reviewed import is documented
 - [ ] No generated output, credentials or local tool executables are committed
 
-For a structural-only baseline conversion, also record `npm run verify:reproduction`.
+Record strict type-check, ordinary-module and behavior-test results. Any
+intentional baseline behavior difference needs a narrowly documented proof/test.

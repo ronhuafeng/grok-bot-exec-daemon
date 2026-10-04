@@ -1,0 +1,444 @@
+{
+  "schemaVersion": 2,
+  "baselineCommit": "89afb204a8a326803669563ff7eda622b9c348d0",
+  "baselineBlob": "fb1031be19418755e01e5a2de8a31253da50809a",
+  "sources": [
+    {
+      "id": "./src/artifactUploads.ts",
+      "file": "artifactUploads.ts",
+      "factory": "./src/artifactUploads.ts"
+    },
+    {
+      "id": "./src/bundledToolPath.ts",
+      "file": "bundledToolPath.ts",
+      "factory": "./src/bundledToolPath.ts"
+    },
+    {
+      "id": "./src/comma-separated-names.ts",
+      "file": "comma-separated-names.ts",
+      "factory": "./src/comma-separated-names.ts"
+    },
+    {
+      "id": "./src/fuseLiveness.ts",
+      "file": "fuseLiveness.ts",
+      "factory": "./src/fuseLiveness.ts"
+    },
+    {
+      "id": "./src/cat-file-batch.ts",
+      "file": "cat-file-batch.ts",
+      "factory": "./src/git.ts"
+    },
+    {
+      "id": "./src/git-name-status.ts",
+      "file": "git-name-status.ts",
+      "factory": "./src/git.ts"
+    },
+    {
+      "id": "./src/managed-git-credentials.ts",
+      "file": "managed-git-credentials.ts",
+      "factory": "./src/git.ts"
+    },
+    {
+      "id": "./src/git.ts",
+      "file": "git.ts",
+      "factory": "./src/git.ts"
+    },
+    {
+      "id": "./src/index.ts",
+      "file": "index.ts",
+      "factory": "./src/index.ts"
+    },
+    {
+      "id": "./src/logger.ts",
+      "file": "logger.ts",
+      "factory": "./src/logger.ts"
+    },
+    {
+      "id": "./src/machine-resources.ts",
+      "file": "machine-resources.ts",
+      "factory": "./src/machine-resources.ts"
+    },
+    {
+      "id": "./src/managed-environment.ts",
+      "file": "managed-environment.ts",
+      "factory": "./src/managed-environment.ts"
+    },
+    {
+      "id": "./src/mcp-token-storage.ts",
+      "file": "mcp-token-storage.ts",
+      "factory": "./src/mcp-token-storage.ts"
+    },
+    {
+      "id": "./src/refresh-git-token.ts",
+      "file": "refresh-git-token.ts",
+      "factory": "./src/refresh-git-token.ts"
+    },
+    {
+      "id": "./src/request-context-disk-cache.ts",
+      "file": "request-context-disk-cache.ts",
+      "factory": "./src/request-context-disk-cache.ts"
+    },
+    {
+      "id": "./src/ring-buffer.ts",
+      "file": "ring-buffer.ts",
+      "factory": "./src/ring-buffer.ts"
+    },
+    {
+      "id": "./src/secretRedaction.ts",
+      "file": "secretRedaction.ts",
+      "factory": "./src/secretRedaction.ts"
+    },
+    {
+      "id": "./src/trace-attributes.ts",
+      "file": "trace-attributes.ts",
+      "factory": "./src/serveCommand.ts"
+    },
+    {
+      "id": "./src/serveCommand.ts",
+      "file": "serveCommand.ts",
+      "factory": "./src/serveCommand.ts"
+    },
+    {
+      "id": "./src/connect-websocket-adapter.ts",
+      "file": "connect-websocket-adapter.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/desktopLease.ts",
+      "file": "desktopLease.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/errors.ts",
+      "file": "errors.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/export-file.ts",
+      "file": "export-file.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/plugin-install/limits.ts",
+      "file": "plugin-install/limits.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/plugin-install/download.ts",
+      "file": "plugin-install/download.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/plugin-install/errors.ts",
+      "file": "plugin-install/errors.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/plugin-install/paths.ts",
+      "file": "plugin-install/paths.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/plugin-install/tar.ts",
+      "file": "plugin-install/tar.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/install-plugin-artifact.ts",
+      "file": "install-plugin-artifact.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/control.ts",
+      "file": "control.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/read-file.ts",
+      "file": "read-file.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/exec.ts",
+      "file": "exec.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/pty-host-server.ts",
+      "file": "pty-host-server.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/tmux-session-server.ts",
+      "file": "tmux-session-server.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/server.ts",
+      "file": "server.ts",
+      "factory": "./src/server.ts"
+    },
+    {
+      "id": "./src/agent-store-skills.ts",
+      "file": "agent-store-skills.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/canvasShareBundle.ts",
+      "file": "canvasShareBundle.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/canvasStorePersist.ts",
+      "file": "canvasStorePersist.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/canvasDiagnostics.ts",
+      "file": "canvasDiagnostics.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/canvasPreviewPersistRoot.ts",
+      "file": "canvasPreviewPersistRoot.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/cloud-plugins-service.ts",
+      "file": "cloud-plugins-service.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/computerUseExecutorSetup.ts",
+      "file": "computerUseExecutorSetup.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/dedupe-agent-skill-rules.ts",
+      "file": "dedupe-agent-skill-rules.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/global-hook-context.ts",
+      "file": "global-hook-context.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/lazy-mcp-client.ts",
+      "file": "lazy-mcp-client.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/mcp-cloud-env.ts",
+      "file": "mcp-cloud-env.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/orbit/browser-operation.ts",
+      "file": "orbit/browser-operation.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/orbit/playwright-mcp.ts",
+      "file": "orbit/playwright-mcp.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/orbit/sand-browser-driver.ts",
+      "file": "orbit/sand-browser-driver.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/orbit/operation-reporting.ts",
+      "file": "orbit/operation-reporting.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/pty-manager.ts",
+      "file": "pty-manager.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/read-only-bare/repository.ts",
+      "file": "read-only-bare/repository.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/read-only-bare/request-context.ts",
+      "file": "read-only-bare/request-context.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/recording-renderer.ts",
+      "file": "recording-renderer.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/remoteAccess.ts",
+      "file": "remoteAccess.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/scoped-secrets.ts",
+      "file": "scoped-secrets.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/shell-oom-kill.ts",
+      "file": "shell-oom-kill.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/webp-codec-startup.ts",
+      "file": "webp-codec-startup.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/setup.ts",
+      "file": "setup.ts",
+      "factory": "./src/setup.ts"
+    },
+    {
+      "id": "./src/startup-traceparent.ts",
+      "file": "startup-traceparent.ts",
+      "factory": "./src/startup-traceparent.ts"
+    },
+    {
+      "id": "./src/tmux-session-manager.ts",
+      "file": "tmux-session-manager.ts",
+      "factory": "./src/tmux-session-manager.ts"
+    },
+    {
+      "id": "./src/tracing.ts",
+      "file": "tracing.ts",
+      "factory": "./src/tracing.ts"
+    },
+    {
+      "id": "./src/workspace-discovery.ts",
+      "file": "workspace-discovery.ts",
+      "factory": "./src/workspace-discovery.ts"
+    }
+  ],
+  "support": [
+    {
+      "file": "runtime-location.ts",
+      "purpose": "Resolve the installed runtime root through the vendor capsule; never cwd or a relocated module directory."
+    },
+    {
+      "file": "configuration.ts",
+      "purpose": "Cohesive setup JSON ingress guards and policy parsing; directly imported and tested without setup lifecycle or native initialization."
+    }
+  ],
+  "retiredSources": [
+    {
+      "id": "./src/darwin-memory.ts",
+      "factory": "./src/machine-resources.ts",
+      "proof": "linux-platform-residue-v1"
+    }
+  ],
+  "reviewedOmissions": [
+    {
+      "proof": "linux-platform-residue-v1",
+      "factory": "./src/machine-resources.ts",
+      "reason": "The supplied Linux build has no references outside the 16-declaration group, no definition-time effects, and no live Darwin/OsHostProbe selector. The exact baseline proof is retained as migration provenance, not a future platform deletion rule.",
+      "declarations": [
+        {
+          "name": "execFileSync",
+          "start": 5035505,
+          "end": 5035522,
+          "sha256": "1bc11b7d0f21250705b3e05234d046cb4820dd9b52f068c0b9cdb7cf4d5567c3"
+        },
+        {
+          "name": "VM_STAT_PATH",
+          "start": 5035524,
+          "end": 5035564,
+          "sha256": "4c9434d21902729a054b5e8bb102564c60cee649a53d0ce883b65691b312696b"
+        },
+        {
+          "name": "VM_STAT_TIMEOUT_MS",
+          "start": 5035565,
+          "end": 5035598,
+          "sha256": "65f797da6a20bb8c0913a53da7d8bbe45787aff23087f697ee82537af28452a8"
+        },
+        {
+          "name": "PAGE_SIZE_PATTERN",
+          "start": 5035599,
+          "end": 5035652,
+          "sha256": "79f35cbaf4e12a40b9c4714e7a5a0c541a69d4ce131761966f3ca96a40abbca8"
+        },
+        {
+          "name": "readCounter",
+          "start": 5035653,
+          "end": 5035993,
+          "sha256": "5bfec8e77bbc8378985820c91bd28a604675dbc20cce644a913099aa19d3820d"
+        },
+        {
+          "name": "parseDarwinVmStat",
+          "start": 5036171,
+          "end": 5037421,
+          "sha256": "2955cffb2f6feb1f6e52189c0d424cce7dca23665e975b972174c377bb528d97"
+        },
+        {
+          "name": "darwinMemoryFromVmStat",
+          "start": 5038261,
+          "end": 5038966,
+          "sha256": "7bc034f3603d2ed963905438e4a5f5b3489e8d9608eb9d7e26ff902411e92031"
+        },
+        {
+          "name": "runVmStat",
+          "start": 5038967,
+          "end": 5039151,
+          "sha256": "058e3ff4c98b24fb3b2c38cb256556d4fe31dec98bb13d843913fc0d67f60fa4"
+        },
+        {
+          "name": "DEFAULT_TTL_MS",
+          "start": 5039152,
+          "end": 5039181,
+          "sha256": "572fa9064b4a91e9b2f08e0f3fdfc8177bb6d1d8e50607b0621c035c801b0fe6"
+        },
+        {
+          "name": "createDarwinMemoryReader",
+          "start": 5039407,
+          "end": 5040096,
+          "sha256": "ebac85644291e839d801f0510c8e0e0be148022bd71b680629ade84aa0cfa942"
+        },
+        {
+          "name": "os",
+          "start": 5040271,
+          "end": 5040278,
+          "sha256": "8a718d077ae48817d95fe5607042c7637bf674a5df11bd89ad92915320e8a607"
+        },
+        {
+          "name": "ResourceScope",
+          "start": 5040317,
+          "end": 5040335,
+          "sha256": "faf2a2450006246942b868ffe67508513a59a02d524d38da144dd6ef1b7b3176"
+        },
+        {
+          "name": "machine_resources_createDarwinMemoryReader",
+          "start": 5040374,
+          "end": 5040421,
+          "sha256": "9d5772cd6f223257b4f79aa5d9d60e86c83651961e4a47d572fe72e806890716"
+        },
+        {
+          "name": "readOsCpu",
+          "start": 5042492,
+          "end": 5042747,
+          "sha256": "a4e927c96c733a2f87709e92cf2b9efcec78625ba52d85e1c5288ac05f8a2e56"
+        },
+        {
+          "name": "defaultOsHostProbeReads",
+          "start": 5049668,
+          "end": 5049849,
+          "sha256": "f9ac473f54cbb93c4f27e0987e65656ef76dc0df4e70694ead0db79fed3eea1c"
+        },
+        {
+          "name": "OsHostProbe",
+          "start": 5050193,
+          "end": 5051335,
+          "sha256": "a6012f712ac5e5a4ad5e7ed086e028edfd06bd8f125bf55592274d5920edca21"
+        }
+      ]
+    }
+  ]
+}

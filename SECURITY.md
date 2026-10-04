@@ -14,7 +14,8 @@ Do not publish secrets or exploit details in a public issue. For a sensitive
 report, use the repository owner's established private contact channel. No
 dedicated security mailbox or private vulnerability-reporting setup is assumed.
 
-Build/check commands parse and assemble JavaScript and run scoped tests. They do
+Build/check commands compile TypeScript, extract a pinned dependency capsule
+and run scoped tests. They do
 not start the server, read host credentials, load native addons, download tools,
 or publish artifacts. Review changes to tooling and CI with the same care as
 runtime code. Do not grant CI write access or secrets for these offline checks.

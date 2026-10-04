@@ -18,10 +18,19 @@ runtime. Recorded timestamps and package names are provenance clues, not an
 independent authenticity attestation.
 
 The entire original tree, including its package metadata and `.gitignore`, is
-preserved under `vendor/exec-daemon-runtime/`. The 21 recovered factories are
-derived verbatim from its `index.js` using the included recovery tool. The
-initial reconstruction has Git blob ID
-`fb1031be19418755e01e5a2de8a31253da50809a`, equal to the imported entrypoint.
+preserved under `vendor/exec-daemon-runtime/`. Its entrypoint retains Git blob ID
+`fb1031be19418755e01e5a2de8a31253da50809a`.
+
+The first project conversion extracted 21 compiled factories and reconstructed
+that entrypoint byte for byte. The subsequent strict-TypeScript reconstruction
+accounts for all 64 identifiable application source segments inside those factories.
+The normal-module migration retains 63 feature segments and retires one closed,
+unreachable platform-only segment with exact source evidence.
+It was newly authored from the readable JavaScript and retained descriptors;
+it is not recovery of the original TypeScript. Types and formatting change
+emitted bytes. See [migration evidence](strict-typescript.md) for the behavior checks
+and bounded source-retirement evidence. Shared-package and third-party code stays
+in the immutable baseline; source location does not change its ownership.
 
 ## What is missing
 

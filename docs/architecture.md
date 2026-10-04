@@ -1,81 +1,99 @@
 # Architecture
 
-## Two explicit boundaries
+## Application modules
 
-The imported installed payload is immutable under
-`vendor/exec-daemon-runtime/`. Its entire Git tree is preserved from snapshot
-commit `89afb204a8a326803669563ff7eda622b9c348d0`, tree
-`0f2a68dbfdfd3018916dee2b1fbceefc3228b9cb`. `vendor/snapshot.json` records all
-2,270 files and their original byte sizes, modes and Git blob hashes.
+`src/runtime/` contains normal TypeScript modules. Feature dependencies are named
+imports; Node builtins use `node:` imports. `index.ts` is the CLI composition root:
+its single-flight `main` creates application state, registers the existing error
+handlers, defines commands and starts Commander parsing in the original order.
+No feature imports that entrypoint.
 
-Project-owned tooling and tests surround that boundary. The files under
-`src/recovered/` are upstream-derived compiled code; putting them in `src/`
-does not change ownership or licensing. Their 21 factories have explicit
-`./src/*.ts` IDs inside the readable Webpack bundle. Each `.cjs` file wraps
-one unchanged factory block in a CommonJS object so editors and `node --check`
-can parse it. The original TypeScript is not present.
+Examples:
 
-## Module map
+- `serveCommand` depends on the trace-attribute parser and retained Commander.
+- `machine-resources` depends on `RingBuffer`, Linux probes and resource messages.
+- `git` depends on its name-status, cat-file and credential helpers.
+- `server` composes the Control, Exec, PTY and tmux implementations.
+- `setup` assembles resources and lifecycle services. `configuration` owns JSON
+  ingress validation and its existing log/default behavior.
 
-- CLI and startup: `index`, `serveCommand`, `bundledToolPath`,
-  `startup-traceparent`, `tracing`, `logger`
-- Daemon wiring and RPC: `setup`, `server`
-- Workspace and Git: `git`, `refresh-git-token`, `workspace-discovery`
-- Environment and access: `managed-environment`, `mcp-token-storage`,
-  `secretRedaction`
-- State and observation: `request-context-disk-cache`, `machine-resources`,
-  `ring-buffer`, `fuseLiveness`
-- Artifacts and sessions: `artifactUploads`, `tmux-session-manager`
-- Parsing utility: `comma-separated-names`
+The build compiles these modules normally. It does not erase exports, evaluate
+source strings, inject globals or put application statements back into Webpack.
 
-This is a navigation map, not a claim that the compiler preserved clean module
-separation. For example, `setup` contains concatenated modules from shared
-packages and `serveCommand` includes the trace-attribute parser. Many original
-`@anysphere/*` package modules and third-party dependencies remain in the bundle.
-Splitting those further requires a separately verified behavioral migration.
+## The vendor boundary
 
-## Build contract
+The original dependency installation is incomplete as upstream source. Some
+libraries are patched or concatenated into larger factories, and several values
+needed by the application are private to those factories. Replacing them with
+similarly named npm packages would risk changing behavior and object identity.
 
-1. Verify the full imported inventory, Git blob hashes, byte sizes and executable
-   modes. Reject unexpected files and symlinks.
-2. Locate the known Webpack factory boundaries in the pinned `index.js` without
-   executing it. Require the recovered module IDs to match exactly.
-3. Parse recovered factories, replace only those original blocks, and parse the
-   assembled JavaScript. All remaining bundle text is retained exactly.
-4. Copy the complete installed layout into `dist/runtime/`, preserving modes,
-   and write the assembled `index.js` in place of the baseline entrypoint.
-5. Verify every generated payload file and the assembled entrypoint.
+`tools/lib/vendor-capsule.ts` derives one CommonJS capsule from the pinned bundle
+and chunk graph. It removes all application bodies, application export getters,
+application-only import scaffolding and old startup. Three retained shared
+closures expose their exact private dependency values. Unknown dynamic edges,
+application backedges, missing exports and changed pinned loader/cache forms
+fail extraction. Retained shared statements keep their bytes and relative order.
 
-There is no package installation, webpack run, upstream native build or remote
-download in this process. It is deterministic assembly of a known installed
-runtime, not a claim of reproducibly building the upstream product from source.
-Repeated builds preserve separately provisioned tools under `dist/runtime/`;
-they overwrite only files owned by the snapshot. Output directories must not
-be symlinks. A whole-directory atomic runtime upgrade is not provided: stop a
-running daemon before rebuilding its directory.
+`src/interop/vendor/` is the only application-facing adapter. Its small facades
+export descriptive values such as `createLogger`, `ControlService` and `Command`.
+Raw registry IDs and minified property keys stay inside this boundary. Facades
+return the original constructors, context keys and singleton values; they do not
+recreate lookalikes. Dynamic canvas loading remains dynamic. Native libraries
+remain behind their original loading contracts.
 
-## Why preserve the installed layout?
+The dependency direction is application → named adapter → vendor capsule.
+There is no dependency-injection container, callback bridge back into application
+code, old application fallback or runtime source parser.
 
-The bundle loads numbered chunks with relative `require()`, locates native
-addons and the canvas/SDK assets beside `index.js`, and relies on installed
-`node_modules` and `lib/node_modules/npm`. Moving these independently would
-change resolution. Tool PATH setup additionally uses the directory containing
-`process.execPath`, so the original sibling-Node launcher contract is retained.
+### Real packages and retained packages
 
-The project launcher in `bin/` delegates to the unchanged imported launcher in
-the built directory, preserving arguments, working directory, exit status and
-`exec`-style process behavior. No argument filtering or automatic server startup
-is added. Original scripts and their relative layout are retained as evidence.
+- Node builtins are real Node imports.
+- TypeScript, Node declarations and Commander typings are pinned development
+  dependencies. They do not replace the bundled Commander implementation.
+- Runtime implementations remain pinned: patched MCP/Connect, OpenTelemetry,
+  protobuf, `@anysphere/*`, WebSocket, Commander and native-loading packages.
+- Source-backed structural types describe consumed APIs. Protobuf types are
+  generated from retained field/service descriptors and audited against constructors.
 
-## Verification boundary
+See [boundary contracts](interop-contract-reconstruction.md).
 
-Tests cover assembly and rejection paths, snapshot integrity, launcher behavior,
-and selected recovered pure/CLI modules. The test-only bundle loader disables
-the exact final startup call before exposing Webpack's module registry; it
-never boots `./src/index.ts` or loads a native addon. Real CLI parsing uses the
-bundled Commander implementation rather than a fake replacement.
+## Installed artifact
 
-These checks do not prove RPC compatibility, native addon ABI compatibility,
-PTY operation, sandboxing, browser control, remote authentication or successful
-server startup. Those require the original/supported runtime tools and an
-explicit integration environment.
+```text
+dist/runtime/
+  index.js                 Compiled CommonJS launch bridge
+  vendor.cjs               Generated vendor-only dependency capsule
+  app/                     Ordinary compiled application/adapter ESM
+    package.json           Explicit ESM package scope
+  <original assets>        Chunks, SDKs, npm, native addons, WASM and shims
+```
+
+The unchanged installed launcher still invokes sibling `node` and `index.js`.
+The bridge imports the ESM entry once and leaves rejection policy to the original
+application handlers and Node. It does not add a new catch/exit policy.
+
+The capsule lives beside the original assets. `runtime-location.ts` exposes that
+single installed root to canvas/SDK lookups, independent of cwd or a relocated
+module's own directory. Executable discovery separately keeps its established
+`process.execPath` contract.
+
+## Build and verification
+
+1. Strictly check every maintained source, tool and test before emitting. Clear
+   only the disposable compiler output, rejecting symlinked output directories.
+2. Verify the complete 2,270-file immutable inventory and original Git tree.
+3. Account for every original application segment, including exact documented
+   dead-code retirement and explicitly listed new support modules.
+4. Prove/extract the vendor-only capsule and compile the ordinary module graph.
+5. Derive the artifact inventory from current compiler output and pinned assets;
+   reject stale/orphaned application output and preserve executable modes.
+6. Verify the generated artifact. Separately provisioned tools remain outside
+   the snapshot-owned inventory at the original documented paths.
+
+A build does not download tools, rebuild native libraries or start the daemon.
+Stop a running daemon before rebuilding: this is not an atomic deployment tool.
+
+Behavior tests import real compiled candidate modules. Baseline VM evaluation is
+confined to the regression oracle. The original AST spelling is not a permanent
+constraint on ordinary feature changes. Capsule extraction, source provenance,
+strict contracts and behavior/side-effect tests remain independent checks.
