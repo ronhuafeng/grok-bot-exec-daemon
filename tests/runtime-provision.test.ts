@@ -6,7 +6,7 @@ import { chmod, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from '
 import os from 'node:os';
 import path from 'node:path';
 import { root } from '../tools/lib/project.js';
-import { assertProvisionDestination, extractArchiveMember, parseRuntimeToolLock, provisionRuntimeTools, sha256 } from '../tools/lib/runtime-provision.js';
+import { assertProvisionDestination, assertTreeArchiveEntries, extractArchiveMember, parseRuntimeToolLock, provisionRuntimeTools, sha256 } from '../tools/lib/runtime-provision.js';
 import type { LockedFile, RuntimeToolLock } from '../tools/lib/runtime-provision.js';
 
 const lockPath = path.join(root, 'runtime/tools.lock.json');
@@ -57,6 +57,13 @@ test('the committed runtime tools match the lock and contract', async () => {
     const stat = await lstat(path.join(root, repo.path));
     assert.equal(stat.mode & 0o777, Number.parseInt(tool.mode.slice(-3), 8), tool.id);
   }
+  const tmux = lock.tools.find(tool => tool.id === 'tmux-root');
+  assert.ok(tmux && tmux.kind === 'tree');
+  const archive = tmux.sources.find(source => source.kind === 'repo-archive');
+  assert.ok(archive && archive.kind === 'repo-archive');
+  const archiveBytes = await readFile(path.join(root, archive.path));
+  assert.equal(archiveBytes.length, archive.size);
+  assert.equal(sha256(archiveBytes), archive.sha256);
 });
 
 test('provisioning copies a matching repo file and refuses the vendor tree', async (t) => {
@@ -183,6 +190,51 @@ test('archive installation checks the archive hash and extracts one member', asy
     verifyExecutables: false,
     fetchArchive: async () => archive,
   }), /Hash mismatch/);
+});
+
+test('a repo archive restores a checked tree and rejects an escaping entry', async (t) => {
+  assert.throws(() => assertTreeArchiveEntries(['../tmux-root/bin/tmux'], 'tmux-root'), /Unsafe archive entry/);
+  assert.throws(() => assertTreeArchiveEntries(['other/bin/tmux'], 'tmux-root'), /outside tmux-root/);
+  const repoRoot = await temp(t, 'exec-daemon-provision-archive-tree-');
+  const destRoot = await temp(t, 'exec-daemon-provision-archive-dest-');
+  const vendorRoot = await temp(t, 'exec-daemon-provision-archive-vendor-');
+  const tree = path.join(repoRoot, 'stage/tmux-root/bin');
+  await mkdir(tree, { recursive: true });
+  const binary = Buffer.from('tmux-bytes');
+  const stamp = Buffer.from('stamp');
+  await writeFile(path.join(tree, 'tmux'), binary);
+  await chmod(path.join(tree, 'tmux'), 0o755);
+  await writeFile(path.join(repoRoot, 'stage/tmux-root/.portable-build-stamp'), stamp);
+  const archivePath = path.join(repoRoot, 'tmux-root.tar');
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn('tar', ['-cf', archivePath, '-C', path.join(repoRoot, 'stage'), 'tmux-root'], { stdio: 'ignore' });
+    child.on('error', reject);
+    child.on('exit', code => code === 0 ? resolve() : reject(new Error(`tar exited ${code ?? 'unknown'}`)));
+  });
+  const archive = await readFile(archivePath);
+  const lock: RuntimeToolLock = {
+    schemaVersion: 1,
+    sourceBuildTimestamp: '2026-10-04T20:39:01.722Z',
+    defaultEnvironment: '/missing',
+    tools: [{
+      kind: 'tree',
+      id: 'tmux-root',
+      dest: 'tmux-root',
+      version: 'test',
+      profiles: ['supported'],
+      optional: false,
+      sources: [{ kind: 'repo-archive', path: 'tmux-root.tar', sha256: sha256(archive), size: archive.length }],
+      checks: [
+        { path: 'bin/tmux', sha256: sha256(binary), size: binary.length, mode: '100755' },
+        { path: '.portable-build-stamp', sha256: sha256(stamp), size: stamp.length, mode: '100644' },
+      ],
+    }],
+  };
+  const actions = await provisionRuntimeTools({
+    lock, repoRoot, destRoot, vendorRoot, profile: 'supported', verifyExecutables: false,
+  });
+  assert.equal(actions[0]?.status, 'copied');
+  assert.equal(await readFile(path.join(destRoot, 'tmux-root/bin/tmux'), 'utf8'), 'tmux-bytes');
 });
 
 test('the lock parser rejects a tampered tool', () => {

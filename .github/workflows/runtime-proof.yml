@@ -16,11 +16,12 @@ jobs:
   proof:
     name: Linux x64 runtime
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          lfs: true
           persist-credentials: false
       - name: Set up project-tooling Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -35,5 +36,5 @@ jobs:
         run: npm run build
       - name: Provision locked runtime tools
         run: npm run provision -- --profile supported
-      - name: Prove native, PTY, ripgrep, CLI and sandbox behavior
+      - name: Prove native, PTY, ripgrep, CLI, sandbox, Origin, tmux, and agent-store behavior
         run: npm run test:live

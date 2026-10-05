@@ -172,12 +172,14 @@ test('known separately provisioned tools stay untouched and outside artifact ver
   await mkdir(path.join(fixture.output, 'tools'), { recursive: true });
   await mkdir(path.join(fixture.output, 'tmux-root/bin'), { recursive: true });
   await writeFile(path.join(fixture.output, 'node'), 'externally provisioned node');
+  await writeFile(path.join(fixture.output, 'cursor-agent-store-fuse'), 'externally provisioned agent store');
   await symlink(path.join(fixture.output, 'node'), path.join(fixture.output, 'gh'));
   await writeFile(path.join(fixture.output, 'tools/origin'), 'externally provisioned tool');
   await writeFile(path.join(fixture.output, 'tmux-root/bin/tmux'), 'externally provisioned tmux');
   await materializeRuntimeBuild(fixture.plan, fixture.output);
   await verifyRuntimeBuild(fixture.plan, fixture.output);
   assert.equal(await readFile(path.join(fixture.output, 'node'), 'utf8'), 'externally provisioned node');
+  assert.equal(await readFile(path.join(fixture.output, 'cursor-agent-store-fuse'), 'utf8'), 'externally provisioned agent store');
   await writeFile(path.join(fixture.output, 'tools/unexpected'), 'unlisted');
   await assert.rejects(verifyRuntimeBuild(fixture.plan, fixture.output), /Unexpected built runtime files/);
 });

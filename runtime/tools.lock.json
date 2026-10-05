@@ -91,9 +91,27 @@
       "size": 105102687,
       "mode": "100755",
       "profiles": ["supported"],
-      "optional": true,
-      "executableCheck": "none",
-      "sources": [{ "kind": "environment", "path": "tools/origin" }]
+      "optional": false,
+      "executableCheck": "origin-version",
+      "sources": [
+        { "kind": "repo", "path": "runtime-tools/origin/linux-x64/origin" },
+        { "kind": "environment", "path": "tools/origin" }
+      ]
+    },
+    {
+      "kind": "file",
+      "id": "cursor-agent-store-fuse",
+      "dest": "cursor-agent-store-fuse",
+      "version": "agent-store-fuse",
+      "sha256": "5974ebd1e38b736412940eb61561503c8c94fe9d2493d2d9d9f2e79583fe1bee",
+      "size": 9377768,
+      "mode": "100755",
+      "profiles": ["supported"],
+      "optional": false,
+      "executableCheck": "agent-store-help",
+      "sources": [
+        { "kind": "repo", "path": "runtime-tools/agent-store/linux-x64/cursor-agent-store-fuse" }
+      ]
     },
     {
       "kind": "tree",
@@ -101,8 +119,16 @@
       "dest": "tmux-root",
       "version": "3.5a",
       "profiles": ["supported"],
-      "optional": true,
-      "sources": [{ "kind": "environment", "path": "tmux-root" }],
+      "optional": false,
+      "sources": [
+        {
+          "kind": "repo-archive",
+          "path": "runtime-tools/tmux-root/linux-x64/tmux-root.tar",
+          "sha256": "64fb6a9948a3e341f636fb3ca7dabe5b998faedb710bc53c910b20d4f8dcf9ae",
+          "size": 8028160
+        },
+        { "kind": "environment", "path": "tmux-root" }
+      ],
       "checks": [
         {
           "path": "bin/tmux",

@@ -20,7 +20,7 @@ const inventoryFilename = 'runtime-build.json';
 // Original deployment prerequisites, deliberately outside the immutable artifact.
 // Never copy, delete, traverse, or hash these user-provisioned paths.
 export function isProvisionedTool(filename: string): boolean {
-  return ['node', 'gh', 'rg', 'ssh-keygen', 'cursorsandbox', 'tools/origin'].includes(filename) || filename === 'tmux-root' || filename.startsWith('tmux-root/');
+  return ['node', 'gh', 'rg', 'ssh-keygen', 'cursorsandbox', 'cursor-agent-store-fuse', 'tools/origin'].includes(filename) || filename === 'tmux-root' || filename.startsWith('tmux-root/');
 }
 async function listManagedBuildFiles(directory: string, prefix = ''): Promise<string[]> {
   const stat = await lstat(directory);

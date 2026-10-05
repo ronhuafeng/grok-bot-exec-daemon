@@ -13,11 +13,16 @@ required. The other tools are copied only when an observed environment, by defau
 | `node` 22.14.0, ABI 127 | Official `nodejs.org` linux-x64 binary, byte-identical to the observed environment |
 | `rg` 15.1.0-cursor5 | `runtime-tools/ripgrep/` (`--cursor-ignore`) |
 | `cursorsandbox` | `runtime-tools/cursorsandbox/` |
-| `gh`, `ssh-keygen`, `origin`, `tmux-root` | Environment copy when the lock hash matches |
+| `origin` | Git LFS: `runtime-tools/origin/` |
+| `cursor-agent-store-fuse` | Git LFS: `runtime-tools/agent-store/` |
+| `tmux-root` | Git LFS archive `runtime-tools/tmux-root/linux-x64/tmux-root.tar`, extracted on provision |
+| `gh`, `ssh-keygen` | Environment copy when the lock hash matches |
 
-`node` and `origin` are larger than GitHub's 100 MB file limit, so they are not
-stored in git. No new license is granted for the captured `rg` and `cursorsandbox`
-binaries. See [provenance](../docs/provenance.md).
+`node` is larger than GitHub's 100 MB file limit, so it is downloaded rather than
+stored. `origin` is also over that limit and is stored with Git LFS, as are the
+agent-store helper and the tmux archive. No new license is granted for the
+captured binaries. See [provenance](../docs/provenance.md). A checkout has to
+fetch LFS objects (`git lfs pull`) before `npm run provision` can see them.
 
 ```sh
 npm run build
@@ -27,5 +32,6 @@ npm run test:live
 ```
 
 `npm run provision -- --profile core` installs Node and ripgrep only.
-The default `--profile supported` also installs `cursorsandbox` and any optional
-environment tools whose hashes match.
+The default `--profile supported` also installs `cursorsandbox`, `origin`,
+`cursor-agent-store-fuse`, `tmux-root`, and any optional environment tools whose
+hashes match.

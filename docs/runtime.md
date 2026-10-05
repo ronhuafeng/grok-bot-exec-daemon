@@ -38,9 +38,11 @@ installer writes `dist/runtime/` only. It checks every file against
 `runtime/tools.lock.json` and refuses to write into `vendor/exec-daemon-runtime/`.
 Do not assume a symlink to the host Node keeps the contract: Node may resolve its
 real executable path elsewhere, while bundled-tool lookup uses `process.execPath`.
-Do not put these tools into the immutable vendor tree. `node` and `origin` are
-too large for a normal GitHub blob; ripgrep 15.1.0-cursor5 and `cursorsandbox`
-are stored under `runtime-tools/` because a public package cannot replace them.
+Do not put these tools into the immutable vendor tree. `node` is too large for a
+normal GitHub blob and is downloaded from nodejs.org. `origin`,
+`cursor-agent-store-fuse`, and the `tmux-root` archive are stored with Git LFS
+under `runtime-tools/`. ripgrep 15.1.0-cursor5 and `cursorsandbox` are stored
+there as ordinary blobs because a public package cannot replace them.
 
 ## Other excluded tools
 

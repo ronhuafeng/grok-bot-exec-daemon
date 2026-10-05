@@ -16,7 +16,7 @@ for (const name of ['index.js', 'node', 'exec-daemon', 'npx', 'lib/node_modules/
 for (const check of checks) console.log(`${check.ok ? 'OK' : 'MISSING'}  ${check.name}: ${check.detail}`);
 console.log('\nNo code, native addon, server, browser, or external tool was executed by this check.');
 console.log('Node ABI compatibility, shared libraries, external services, credentials, and whether provisioned tools run remain unverified.');
-for (const name of ['rg', 'cursorsandbox', 'gh', 'ssh-keygen', 'tools/origin', 'tmux-root/bin/tmux']) {
+for (const name of ['rg', 'cursorsandbox', 'gh', 'ssh-keygen', 'tools/origin', 'cursor-agent-store-fuse', 'tmux-root/bin/tmux']) {
   let present = true;
   try { await access(path.join(buildRoot, name), constants.X_OK); }
   catch { present = false; }

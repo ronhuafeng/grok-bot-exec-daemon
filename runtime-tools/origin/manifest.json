@@ -1,0 +1,11 @@
+{
+  "name": "origin",
+  "version": "2026.09.24-20-34-11-8ed25e0",
+  "platform": "linux-x64",
+  "sha256": "1b28f4195dccf349cfd1ef66e42cb20b7fcaf126bc503949ff121f802067ca5e",
+  "size": 105102687,
+  "mode": "100755",
+  "path": "linux-x64/origin",
+  "storage": "git-lfs",
+  "observedIn": "exec-daemon build 2026-10-04T20:39:01.722Z"
+}

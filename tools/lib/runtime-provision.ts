@@ -4,10 +4,10 @@ import { constants } from 'node:fs';
 import { access, cp, lstat, mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { hasCode, requireRecord, requireString, validateRelativePath, writeGeneratedFile } from './project.js';
+import { ensureDirectory, hasCode, requireRecord, requireString, validateRelativePath, writeGeneratedFile } from './project.js';
 
 export type RuntimeProfile = 'core' | 'supported';
-export type ExecutableCheck = 'none' | 'node-22.14.0' | 'ripgrep-cursor5' | 'cursorsandbox-help';
+export type ExecutableCheck = 'none' | 'node-22.14.0' | 'ripgrep-cursor5' | 'cursorsandbox-help' | 'origin-version' | 'agent-store-help';
 export type FileMode = '100644' | '100755';
 
 export interface FileSourceEnvironment { kind: 'environment'; path: string }
@@ -19,6 +19,9 @@ export interface FileSourceUrl {
   archiveMember: string;
 }
 export type ToolSource = FileSourceEnvironment | FileSourceRepo | FileSourceUrl;
+export interface TreeSourceEnvironment { kind: 'environment'; path: string }
+export interface TreeSourceArchive { kind: 'repo-archive'; path: string; sha256: string; size: number }
+export type TreeSource = TreeSourceEnvironment | TreeSourceArchive;
 
 export interface FileCheck { path: string; sha256: string; size: number; mode: FileMode }
 export interface LockedFile {
@@ -41,7 +44,7 @@ export interface LockedTree {
   version: string;
   profiles: readonly RuntimeProfile[];
   optional: boolean;
-  sources: readonly FileSourceEnvironment[];
+  sources: readonly TreeSource[];
   checks: readonly FileCheck[];
 }
 export type LockedTool = LockedFile | LockedTree;
@@ -68,7 +71,7 @@ export interface ProvisionOptions {
 }
 
 const profiles = new Set<RuntimeProfile>(['core', 'supported']);
-const checks = new Set<ExecutableCheck>(['none', 'node-22.14.0', 'ripgrep-cursor5', 'cursorsandbox-help']);
+const checks = new Set<ExecutableCheck>(['none', 'node-22.14.0', 'ripgrep-cursor5', 'cursorsandbox-help', 'origin-version', 'agent-store-help']);
 const modes = new Set<FileMode>(['100644', '100755']);
 
 export function sha256(bytes: Uint8Array): string {
@@ -107,6 +110,21 @@ function requireSize(value: unknown, label: string): number {
 function unknownItems(value: unknown, label: string): readonly unknown[] {
   if (!Array.isArray(value) || value.length === 0) throw new Error(`Expected entries: ${label}`);
   return value.map((item: unknown): unknown => item);
+}
+
+function parseTreeSource(value: unknown, label: string): TreeSource {
+  const source = requireRecord(value, label);
+  const kind = requireString(source.kind, `${label}.kind`);
+  if (kind === 'environment') return { kind, path: validateRelativePath(source.path) };
+  if (kind === 'repo-archive') {
+    return {
+      kind,
+      path: validateRelativePath(source.path),
+      sha256: requireSha256(source.sha256, `${label}.sha256`),
+      size: requireSize(source.size, `${label}.size`),
+    };
+  }
+  throw new Error(`Unsupported tree source: ${label}`);
 }
 
 function parseSource(value: unknown, label: string, allowUrl: boolean): ToolSource {
@@ -150,11 +168,7 @@ function parseTool(value: unknown, index: number): LockedTool {
   };
   const sources = unknownItems(tool.sources, `${id}.sources`);
   if (kind === 'tree') {
-    const parsedSources = sources.map((source, sourceIndex) => {
-      const parsed = parseSource(source, `${id}.sources[${sourceIndex}]`, false);
-      if (parsed.kind !== 'environment') throw new Error(`Tree tools are copied from the observed environment: ${id}`);
-      return parsed;
-    });
+    const parsedSources = sources.map((source, sourceIndex) => parseTreeSource(source, `${id}.sources[${sourceIndex}]`));
     return { kind: 'tree', ...base, sources: parsedSources, checks: unknownItems(tool.checks, `${id}.checks`).map((check, checkIndex) => parseFileCheck(check, `${id}.checks[${checkIndex}]`)) };
   }
   if (kind !== 'file') throw new Error(`Unsupported tool kind: ${id}`);
@@ -248,7 +262,7 @@ async function verifyExecutable(filename: string, check: ExecutableCheck): Promi
   if (check === 'none') return;
   const args = check === 'node-22.14.0'
     ? ['-p', 'process.version + " " + process.versions.modules']
-    : check === 'ripgrep-cursor5' ? ['--version'] : ['--help'];
+    : check === 'ripgrep-cursor5' || check === 'origin-version' ? ['--version'] : ['--help'];
   const result = await new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(filename, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     const stdout: Buffer[] = [];
@@ -262,6 +276,8 @@ async function verifyExecutable(filename: string, check: ExecutableCheck): Promi
   if (check === 'node-22.14.0' && result.stdout.trim() !== 'v22.14.0 127') throw new Error(`Provisioned Node is ${result.stdout.trim() || 'unreadable'}`);
   if (check === 'ripgrep-cursor5' && !output.includes('ripgrep 15.1.0-cursor5')) throw new Error('Provisioned ripgrep is not 15.1.0-cursor5');
   if (check === 'cursorsandbox-help' && (result.status !== 0 || !output.includes('--preflight-only'))) throw new Error('Provisioned cursorsandbox did not report its help');
+  if (check === 'origin-version' && (result.status !== 0 || !output.includes('2026.09.24-20-34-11-8ed25e0'))) throw new Error('Provisioned Origin CLI did not report its locked version');
+  if (check === 'agent-store-help' && (result.status !== 0 || !output.includes('--backend-mode'))) throw new Error('Provisioned agent-store FUSE helper did not report its help');
 }
 
 async function fetchArchiveBytes(url: string): Promise<Uint8Array> {
@@ -320,18 +336,60 @@ async function matchingTree(root: string, checks: readonly FileCheck[]): Promise
   return true;
 }
 
+export function assertTreeArchiveEntries(entries: readonly string[], rootName: string): void {
+  if (entries.length === 0) throw new Error(`Empty runtime archive: ${rootName}`);
+  for (const entry of entries) {
+    const relative = entry.replace(/\/$/, '');
+    if (!relative || relative.split('/').some(part => !part || part === '.' || part === '..')) throw new Error(`Unsafe archive entry: ${entry}`);
+    if (relative !== rootName && !relative.startsWith(`${rootName}/`)) throw new Error(`Archive entry is outside ${rootName}: ${entry}`);
+  }
+}
+
+async function commandOutput(command: string, args: readonly string[]): Promise<{ status: number | null; stdout: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    const stdout: Buffer[] = [];
+    child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+    child.on('error', reject);
+    child.on('exit', status => resolve({ status, stdout: Buffer.concat(stdout).toString('utf8') }));
+  });
+}
+
+async function extractRepoTree(archivePath: string, destRoot: string, rootName: string): Promise<void> {
+  const listed = await commandOutput('tar', ['-tf', archivePath]);
+  if (listed.status !== 0) throw new Error(`Cannot list runtime archive: ${archivePath}`);
+  assertTreeArchiveEntries(listed.stdout.split('\n').filter(entry => entry !== ''), rootName);
+  await ensureDirectory(destRoot);
+  const destination = resolveInside(destRoot, rootName);
+  await rm(destination, { recursive: true, force: true });
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn('tar', ['-xf', archivePath, '-C', destRoot], { stdio: 'ignore' });
+    child.on('error', reject);
+    child.on('exit', code => code === 0 ? resolve() : reject(new Error(`tar exited ${code ?? 'unknown'}`)));
+  });
+}
+
 async function provisionTree(tool: LockedTree, options: ProvisionOptions, environmentRoot: string | undefined): Promise<ProvisionAction> {
-  if (environmentRoot) {
-    for (const source of tool.sources) {
-      const from = resolveInside(environmentRoot, source.path);
-      if (!await directoryExists(from)) continue;
-      if (!await matchingTree(from, tool.checks)) throw new Error(`Runtime tree does not match the lock: ${tool.id}`);
+  for (const source of tool.sources) {
+    if (source.kind === 'repo-archive') {
+      const archivePath = resolveInside(options.repoRoot, source.path);
+      const bytes = await readRegularFile(archivePath);
+      if (!bytes) continue;
+      assertBytes(bytes, source, archivePath);
+      await extractRepoTree(archivePath, options.destRoot, tool.dest);
       const destination = resolveInside(options.destRoot, tool.dest);
-      await rm(destination, { recursive: true, force: true });
-      await cp(from, destination, { recursive: true, verbatimSymlinks: true });
-      if (!await matchingTree(destination, tool.checks)) throw new Error(`Copied runtime tree does not match the lock: ${tool.id}`);
-      return { id: tool.id, status: 'copied', detail: from };
+      if (!await matchingTree(destination, tool.checks)) throw new Error(`Extracted runtime tree does not match the lock: ${tool.id}`);
+      return { id: tool.id, status: 'copied', detail: archivePath };
     }
+    if (!environmentRoot) continue;
+    const from = resolveInside(environmentRoot, source.path);
+    if (!await directoryExists(from)) continue;
+    if (!await matchingTree(from, tool.checks)) throw new Error(`Runtime tree does not match the lock: ${tool.id}`);
+    const destination = resolveInside(options.destRoot, tool.dest);
+    await rm(destination, { recursive: true, force: true });
+    await cp(from, destination, { recursive: true, verbatimSymlinks: true });
+    if (!await matchingTree(destination, tool.checks)) throw new Error(`Copied runtime tree does not match the lock: ${tool.id}`);
+    return { id: tool.id, status: 'copied', detail: from };
   }
   if (tool.optional) return { id: tool.id, status: 'skipped', detail: 'optional source absent' };
   throw new Error(`Required runtime tree is unavailable: ${tool.id}`);

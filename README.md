@@ -70,7 +70,8 @@ npm run doctor
 
 The imported native addons target Linux x86-64. The supported runtime is official
 Node.js 22.14.0, ABI 127. `npm run provision` installs it, the captured ripgrep
-fork, and `cursorsandbox` into `dist/runtime/`. `npm run test:live` then proves
-native loading, PTY spawn, ripgrep `--cursor-ignore`, CLI help and sandbox write
-denial. A green `npm run check` does not start the daemon. See
-[runtime requirements](docs/runtime.md) and [verification limits](docs/strict-typescript.md).
+fork, `cursorsandbox`, and the Git LFS copies of `origin`, `tmux-root`, and
+`cursor-agent-store-fuse` into `dist/runtime/`. `npm run test:live` then proves
+native loading, PTY spawn, ripgrep `--cursor-ignore`, CLI help, sandbox write
+denial, and those three tools. A green `npm run check` does not start the daemon.
+See [runtime requirements](docs/runtime.md) and [verification limits](docs/strict-typescript.md).

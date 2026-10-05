@@ -1,0 +1,11 @@
+{
+  "name": "tmux-root",
+  "version": "3.5a",
+  "platform": "linux-x64",
+  "archive": "linux-x64/tmux-root.tar",
+  "sha256": "64fb6a9948a3e341f636fb3ca7dabe5b998faedb710bc53c910b20d4f8dcf9ae",
+  "size": 8028160,
+  "storage": "git-lfs",
+  "tmuxBinarySha256": "b48a48bf7d45c884f183f6ae16d0c9f0852d61221cc3f90a50842e22fea89b7c",
+  "observedIn": "exec-daemon build 2026-10-04T20:39:01.722Z"
+}
