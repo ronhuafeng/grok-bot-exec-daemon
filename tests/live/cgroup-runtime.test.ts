@@ -8,7 +8,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildRoot, root } from '../../tools/lib/project.js';
 
-const memoryLimit = 268435456;
+const memoryLimit = 1073741824;
 const cpuQuota = 20000;
 const cpuPeriod = 100000;
 const cpuLimitMcores = Math.round((cpuQuota / cpuPeriod) * 1000);
@@ -60,6 +60,7 @@ test('GetResourceUsage reports the cgroup v2 limits', { timeout: 120000 }, async
   await prepareCgroup();
   const token = 'ci-resource-token';
   const children: ChildProcess[] = [];
+  const logs: Buffer[] = [];
   const start = async (enabled: boolean): Promise<{ port: number; child: ChildProcess }> => {
     const port = await freePort();
     const ptyPort = await freePort();
@@ -70,6 +71,8 @@ test('GetResourceUsage reports the cgroup v2 limits', { timeout: 120000 }, async
       env: { ...process.env, HOME: home, CURSOR_EXEC_DAEMON_DATA_DIR: path.join(directory, enabled ? 'data-on' : 'data-off'), EXEC_DAEMON_AUTH_TOKEN: token },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    child.stderr?.on('data', (chunk: Buffer) => logs.push(chunk));
+    child.stdout?.on('data', (chunk: Buffer) => logs.push(chunk));
     children.push(child);
     return { port, child };
   };
@@ -88,7 +91,7 @@ test('GetResourceUsage reports the cgroup v2 limits', { timeout: 120000 }, async
       if (response?.status === 200) { body = await response.text(); break; }
       await new Promise(resolve => setTimeout(resolve, 200));
     }
-    assert.match(body, /CONTAINER/);
+    assert.match(body, /CONTAINER/, Buffer.concat(logs).toString('utf8').slice(-2000));
     assert.match(body, new RegExp(String(memoryLimit)));
     assert.match(body, new RegExp(`"cpuLimitMcores":\\s*${cpuLimitMcores}`));
     assert.match(body, /"memoryUsedBytes"/);
