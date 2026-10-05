@@ -15,8 +15,14 @@ for (const name of ['index.js', 'node', 'exec-daemon', 'npx', 'lib/node_modules/
 }
 for (const check of checks) console.log(`${check.ok ? 'OK' : 'MISSING'}  ${check.name}: ${check.detail}`);
 console.log('\nNo code, native addon, server, browser, or external tool was executed by this check.');
-console.log('Node ABI compatibility, shared libraries, external services, credentials, and optional tool availability remain unverified.');
-console.log('Optional features may require rg, gh, ssh-keygen, cursorsandbox, tools/origin, or tmux-root/. See docs/runtime.md.');
+console.log('Node ABI compatibility, shared libraries, external services, credentials, and whether provisioned tools run remain unverified.');
+for (const name of ['rg', 'cursorsandbox', 'gh', 'ssh-keygen', 'tools/origin', 'cursor-agent-store-fuse', 'tmux-root/bin/tmux']) {
+  let present = true;
+  try { await access(path.join(buildRoot, name), constants.X_OK); }
+  catch { present = false; }
+  console.log(`${present ? 'OK' : 'ABSENT'}  ${name}: ${present ? 'provisioned' : 'not provisioned; npm run provision installs locked tools'}`);
+}
+console.log('See docs/runtime.md and runtime/README.md.');
 // Read only the ELF header, never dlopen the imported binary.
 try {
   const bytes = await readFile(path.join(buildRoot, 'pty.node'));

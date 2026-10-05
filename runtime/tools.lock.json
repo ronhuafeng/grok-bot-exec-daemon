@@ -1,0 +1,148 @@
+{
+  "schemaVersion": 1,
+  "sourceBuildTimestamp": "2026-10-04T20:39:01.722Z",
+  "defaultEnvironment": "/exec-daemon",
+  "tools": [
+    {
+      "kind": "file",
+      "id": "node",
+      "dest": "node",
+      "version": "22.14.0",
+      "sha256": "1abce2374a485bddae3c27b17a3e3143e2780232026e627c4fe74ddde3f380a1",
+      "size": 120177224,
+      "mode": "100755",
+      "profiles": ["core", "supported"],
+      "optional": false,
+      "executableCheck": "node-22.14.0",
+      "sources": [
+        { "kind": "environment", "path": "node" },
+        {
+          "kind": "url",
+          "url": "https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz",
+          "archiveSha256": "69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec",
+          "archiveMember": "node-v22.14.0-linux-x64/bin/node"
+        }
+      ]
+    },
+    {
+      "kind": "file",
+      "id": "rg",
+      "dest": "rg",
+      "version": "15.1.0-cursor5",
+      "sha256": "d42ae51b08e3a368ff9504ea713dc05934a6315f759531eb1f714147dd9989a5",
+      "size": 5396392,
+      "mode": "100755",
+      "profiles": ["core", "supported"],
+      "optional": false,
+      "executableCheck": "ripgrep-cursor5",
+      "sources": [
+        { "kind": "repo", "path": "runtime-tools/ripgrep/linux-x64/rg" },
+        { "kind": "environment", "path": "rg" }
+      ]
+    },
+    {
+      "kind": "file",
+      "id": "cursorsandbox",
+      "dest": "cursorsandbox",
+      "version": "sandbox-helper",
+      "sha256": "62e854f33837c53f6fa52e09deca5e3e8d56307eb876e48a7bac6e7e07aa4cc7",
+      "size": 4777184,
+      "mode": "100755",
+      "profiles": ["supported"],
+      "optional": false,
+      "executableCheck": "cursorsandbox-help",
+      "sources": [
+        { "kind": "repo", "path": "runtime-tools/cursorsandbox/linux-x64/cursorsandbox" },
+        { "kind": "environment", "path": "cursorsandbox" }
+      ]
+    },
+    {
+      "kind": "file",
+      "id": "gh",
+      "dest": "gh",
+      "version": "2.99.0",
+      "sha256": "d0a901528411dfc2295253ba4183b99788f99c5901e3a6dda9172089c42d3b85",
+      "size": 41517218,
+      "mode": "100755",
+      "profiles": ["supported"],
+      "optional": true,
+      "executableCheck": "none",
+      "sources": [{ "kind": "environment", "path": "gh" }]
+    },
+    {
+      "kind": "file",
+      "id": "ssh-keygen",
+      "dest": "ssh-keygen",
+      "version": "openssh",
+      "sha256": "5175ddce2146fc8a03ab8e1ef25a1b0382dd3cb209484f7ae11ac782171c0d04",
+      "size": 453056,
+      "mode": "100755",
+      "profiles": ["supported"],
+      "optional": true,
+      "executableCheck": "none",
+      "sources": [{ "kind": "environment", "path": "ssh-keygen" }]
+    },
+    {
+      "kind": "file",
+      "id": "origin",
+      "dest": "tools/origin",
+      "version": "2026.09.24-20-34-11-8ed25e0",
+      "sha256": "1b28f4195dccf349cfd1ef66e42cb20b7fcaf126bc503949ff121f802067ca5e",
+      "size": 105102687,
+      "mode": "100755",
+      "profiles": ["supported"],
+      "optional": false,
+      "executableCheck": "origin-version",
+      "sources": [
+        { "kind": "repo", "path": "runtime-tools/origin/linux-x64/origin" },
+        { "kind": "environment", "path": "tools/origin" }
+      ]
+    },
+    {
+      "kind": "file",
+      "id": "cursor-agent-store-fuse",
+      "dest": "cursor-agent-store-fuse",
+      "version": "agent-store-fuse",
+      "sha256": "5974ebd1e38b736412940eb61561503c8c94fe9d2493d2d9d9f2e79583fe1bee",
+      "size": 9377768,
+      "mode": "100755",
+      "profiles": ["supported"],
+      "optional": false,
+      "executableCheck": "agent-store-help",
+      "sources": [
+        { "kind": "repo", "path": "runtime-tools/agent-store/linux-x64/cursor-agent-store-fuse" }
+      ]
+    },
+    {
+      "kind": "tree",
+      "id": "tmux-root",
+      "dest": "tmux-root",
+      "version": "3.5a",
+      "profiles": ["supported"],
+      "optional": false,
+      "sources": [
+        {
+          "kind": "repo-archive",
+          "path": "runtime-tools/tmux-root/linux-x64/tmux-root.tar",
+          "sha256": "64fb6a9948a3e341f636fb3ca7dabe5b998faedb710bc53c910b20d4f8dcf9ae",
+          "size": 8028160
+        },
+        { "kind": "environment", "path": "tmux-root" }
+      ],
+      "checks": [
+        {
+          "path": "bin/tmux",
+          "sha256": "b48a48bf7d45c884f183f6ae16d0c9f0852d61221cc3f90a50842e22fea89b7c",
+          "size": 1069680,
+          "mode": "100755"
+        },
+        {
+          "path": ".portable-build-stamp",
+          "sha256": "5bc6c758f185b41cbbe4f076e743d51f5b194dc93b968bbd932219b37898fd59",
+          "size": 338,
+          "mode": "100644"
+        }
+      ]
+    }
+  ]
+}

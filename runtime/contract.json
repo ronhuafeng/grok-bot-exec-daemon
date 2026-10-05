@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "platform": {
+    "os": "linux",
+    "arch": "x64",
+    "libc": "glibc"
+  },
+  "node": {
+    "version": "22.14.0",
+    "modules": 127,
+    "binarySha256": "1abce2374a485bddae3c27b17a3e3143e2780232026e627c4fe74ddde3f380a1",
+    "distribution": "https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz"
+  },
+  "profiles": {
+    "core": {
+      "required": ["node", "rg"],
+      "optional": []
+    },
+    "supported": {
+      "required": ["node", "rg", "cursorsandbox", "origin", "cursor-agent-store-fuse", "tmux-root"],
+      "optional": ["gh", "ssh-keygen"]
+    }
+  },
+  "snapshot": {
+    "baselineBuildTimestamp": "2026-10-01T21:30:36.601Z",
+    "toolObservationBuildTimestamp": "2026-10-04T20:39:01.722Z"
+  },
+  "agentStore": {
+    "required": true,
+    "binary": "cursor-agent-store-fuse",
+    "observedPath": "/usr/local/bin/cursor-agent-store-fuse",
+    "sha256": "5974ebd1e38b736412940eb61561503c8c94fe9d2493d2d9d9f2e79583fe1bee",
+    "size": 9377768,
+    "filesystemType": "fuse.agent-store",
+    "mountPath": "/cursor/stores"
+  },
+  "host": {
+    "core": { "os": "linux", "arch": "x64", "libc": "glibc" },
+    "sandbox": { "executable": "bwrap", "unprivilegedUserNamespace": true },
+    "agentStore": { "device": "/dev/fuse", "fuseConf": "user_allow_other", "executable": "fusermount3" },
+    "cgroup": { "version": 2, "mount": "/sys/fs/cgroup" }
+  },
+  "desktop": {
+    "sharedLibraries": ["libfreetype.so.6", "libavcodec.so.60", "libavformat.so.60", "libavutil.so.58", "libswscale.so.7"]
+  }
+}

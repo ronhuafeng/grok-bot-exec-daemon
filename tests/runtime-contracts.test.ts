@@ -156,9 +156,11 @@ test('new launcher flags and excess operands are tolerated and option-looking le
   assert.deepEqual(plain(collectUnknownServeOptions(command.args)), ['--future-feature', '--another-future=enabled']);
 });
 
-test('required auth, known option values, and missing option arguments remain strict', () => {
+test('auth can be supplied outside argv, while known option values and missing arguments stay strict', () => {
+  const { command: optionalAuth } = serve();
+  optionalAuth.parse([], { from: 'user' });
+  assert.equal(optionalAuth.opts().authToken, undefined);
   const cases = [
-    { args: [], code: 'commander.missingMandatoryOptionValue', message: /auth-token/ },
     { args: ['--auth-token', 'test-only-token', '--log-level', 'verbose'], code: 'commander.invalidArgument', message: /Allowed choices/ },
     { args: ['--auth-token', 'test-only-token', '--port'], code: 'commander.optionMissingArgument', message: /port/ },
   ];

@@ -22,22 +22,27 @@ arguments are preserved by the launcher.
 
 ## Node and platform
 
-Project tooling requires Node 22.20+ or 24.3+; CI checks the latest releases in both lines. This does not identify the original
-runtime Node version or native ABI. The imported package metadata does not
-record that version, and the original executable was excluded from Git.
+Project tooling requires Node 22.20+ or 24.3+; CI checks the latest releases in both lines. The native runtime is a separate
+pin. The observed environment's `node` is the official Node.js 22.14.0 linux-x64
+binary, ABI `modules` 127, and it loads this snapshot's `pty.node`, tree-sitter
+bindings and `polished-renderer.node`. `npm run provision` installs that binary
+into `dist/runtime/node` from the observed environment or from nodejs.org.
 
 The `pty.node` and `polished-renderer.node` files are Linux x86-64 ELF shared
 objects. Additional native tree-sitter bindings are shipped inside
-`node_modules`. Their sources/build recipes and supported Node ABI are not
-established by this repository. macOS-related helper names and browser WASM
-files do not make the complete runtime cross-platform.
+`node_modules`. The supported ABI is Node 22 `modules` 127. macOS-related helper
+names and browser WASM files do not make the complete runtime cross-platform.
 
-Provision a trusted compatible Node executable at `dist/runtime/node`, using
-the supported runtime's documented toolchain when it becomes available. Do not
-assume a symlink to the host Node keeps the contract: Node may resolve its real
-executable path elsewhere, while bundled-tool lookup uses `process.execPath`.
-Do not put these local tools into the immutable vendor tree or commit them.
-The build does not fetch a replacement or choose a native ABI for you.
+Install the locked tools with `npm run provision` after `npm run build`. The
+installer writes `dist/runtime/` only. It checks every file against
+`runtime/tools.lock.json` and refuses to write into `vendor/exec-daemon-runtime/`.
+Do not assume a symlink to the host Node keeps the contract: Node may resolve its
+real executable path elsewhere, while bundled-tool lookup uses `process.execPath`.
+Do not put these tools into the immutable vendor tree. `node` is too large for a
+normal GitHub blob and is downloaded from nodejs.org. `origin`,
+`cursor-agent-store-fuse`, and the `tmux-root` archive are stored with Git LFS
+under `runtime-tools/`. ripgrep 15.1.0-cursor5 and `cursorsandbox` are stored
+there as ordinary blobs because a public package cannot replace them.
 
 ## Other excluded tools
 
@@ -48,11 +53,15 @@ expects `tmux-root/bin/tmux`, libraries under `tmux-root/lib`, and terminfo unde
 `tmux-root/share/terminfo`. The imported `npx` shim expects sibling Node and
 `lib/node_modules/npm/bin/npx-cli.js`.
 
-`npm run doctor` checks platform and important built-file presence only. It
-does not invoke Node from the runtime, native addons, the server, subprocess
-tools, network services or authentication. A successful doctor result is not
-a guarantee that the daemon works; a fresh clone is expected to report the
-missing original Node executable.
+`npm run doctor` checks platform and built-file presence only. It does not invoke
+Node from the runtime, native addons, the server, subprocess tools, network
+services or authentication. `npm run test:live` is the separate acceptance run.
+It loads the native addons, reads PTY output, checks `--cursor-ignore`, starts
+`serve`, checks HTTP Ping and PTY WebSocket authentication, exercises
+`cursorsandbox` write denial, and checks Origin, tmux, and a `fuse.agent-store`
+mount. Runners without Landlock's network namespace need `bubblewrap` for that
+sandbox check. A fresh clone reports the runtime Node as missing until
+`npm run provision`, and a checkout without Git LFS objects fails the hash check.
 
 ## CLI and safety
 
@@ -71,3 +80,30 @@ paths; see [verification](strict-typescript.md).
 Stop a running daemon before rebuilding `dist/runtime/`. The builder preserves
 separately provisioned files there, but updates owned payload files individually;
 it is a developer build tool, not a live-upgrade/deployment mechanism.
+
+## Host preflight
+
+`npm run preflight -- --profile supported` checks the Linux host before startup.
+It reports architecture, glibc, `bwrap`, unprivileged user namespaces, `/dev/fuse`,
+`user_allow_other`, `fusermount3`, and cgroup v2. It does not change sysctls or
+FUSE configuration. The runtime-proof workflow prepares a GitHub-hosted runner
+and then runs this same check. Core-only hosts can use `--profile core`.
+
+## Writable state
+
+`CURSOR_EXEC_DAEMON_DATA_DIR` is the mountable root for daemon-owned mutable
+files: `logs/`, `artifacts/`, `recording-staging/`, and
+`request-context-cache.json`. Without it, those files keep their compatibility
+locations under `/opt/cursor`. Agent Store mounts and the upstream sandbox
+policy directory under the user home stay outside this data root. HTTP and PTY
+listeners bind to all interfaces unless `--bind-host` or `EXEC_DAEMON_BIND_HOST`
+is set. The PTY listener uses that host unless `--pty-bind-host` or
+`EXEC_DAEMON_PTY_BIND_HOST` overrides it. Recommended production supplies
+`EXEC_DAEMON_AUTH_TOKEN` and `EXEC_DAEMON_PTY_AUTH_TOKEN`, or the matching
+`*_FILE` paths, instead of putting secrets in argv. CLI values still win when
+present. TLS for a public listener belongs to the surrounding deployment.
+
+A successful Runtime proof writes `runtime-proof.json`. That file records the
+tested commit, host, Node ABI, locked tool hashes, and passed live checks. It is
+conformance evidence for that run, not a provenance attestation or a security
+review. Provenance remains in [provenance](provenance.md).

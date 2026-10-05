@@ -104,8 +104,8 @@ test('launcher explains missing or non-executable bundled Node without falling b
       const result = run(tree);
       assert.equal(result.status, 1);
       assert.equal(result.stdout, '');
-      assert.match(result.stderr, /original Node binary was not included/);
-      assert.match(result.stderr, /dist\/runtime\/node.*npm run doctor/);
+      assert.match(result.stderr, /dist\/runtime\/node is missing/);
+      assert.match(result.stderr, /npm run provision/);
     });
   }
 });

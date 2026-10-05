@@ -14,9 +14,10 @@ import { GitService } from "./git.js";
 import { FilteredLoggerBackend } from "./logger.js";
 import { MachineResourceMonitor } from "./machine-resources.js";
 import { refreshGitTokenForCurrentWorkspace } from "./refresh-git-token.js";
-import { writeRequestContextDiskCache, REQUEST_CONTEXT_DISK_CACHE_PATH } from "./request-context-disk-cache.js";
+import { writeRequestContextDiskCache, resolveRequestContextDiskCachePath } from "./request-context-disk-cache.js";
 import { createServeCommand, collectUnknownServeOptions } from "./serveCommand.js";
 import { startServer, startPtyHostWebSocketServer } from "./server.js";
+import { AUTH_TOKEN_ENV_VAR, AUTH_TOKEN_FILE_ENV_VAR, BIND_HOST_ENV_VAR, PTY_AUTH_TOKEN_ENV_VAR, PTY_AUTH_TOKEN_FILE_ENV_VAR, PTY_BIND_HOST_ENV_VAR, resolveAuthSecret, resolveBindHost } from "./runtime-ingress.js";
 import { EXEC_DAEMON_DATA_DIR_ENV_VAR, setupDaemon } from "./setup.js";
 import { withStartupTraceparent } from "./startup-traceparent.js";
 import { TmuxSessionManager } from "./tmux-session-manager.js";
@@ -139,6 +140,28 @@ async function start(argv: string[]): Promise<void> {
             });
         }
         filteredLoggerBackend.setMinLevel(opts.logLevel);
+        const httpAuth = resolveAuthSecret({
+            cli: opts.authToken,
+            filePath: process.env[AUTH_TOKEN_FILE_ENV_VAR],
+            environment: process.env[AUTH_TOKEN_ENV_VAR],
+        });
+        if (httpAuth === undefined) {
+            execDaemonLogger.error(globalContext, "HTTP auth token is required via --auth-token, EXEC_DAEMON_AUTH_TOKEN_FILE, or EXEC_DAEMON_AUTH_TOKEN");
+            process.exit(1);
+        }
+        const ptyAuth = resolveAuthSecret({
+            cli: opts.ptyAuthToken,
+            filePath: process.env[PTY_AUTH_TOKEN_FILE_ENV_VAR],
+            environment: process.env[PTY_AUTH_TOKEN_ENV_VAR],
+        });
+        const bindHost = resolveBindHost(opts.bindHost, process.env[BIND_HOST_ENV_VAR]);
+        const ptyBindHost = resolveBindHost(opts.ptyBindHost, process.env[PTY_BIND_HOST_ENV_VAR]) ?? bindHost;
+        execDaemonLogger.info(globalContext, "Listener authentication configured", {
+            httpAuthSource: httpAuth.source,
+            ptyAuthSource: ptyAuth?.source ?? "disabled",
+            bindHost: bindHost ?? "all-interfaces",
+            ptyBindHost: ptyBindHost ?? "all-interfaces",
+        });
         configureRipgrepPath(opts.rgPath);
         if (opts.originCliEnabled) {
             prependExecDaemonGatedToolsToPath();
@@ -148,6 +171,10 @@ async function start(argv: string[]): Promise<void> {
         }
         await runServer({
             ...opts,
+            authToken: httpAuth.value,
+            ptyAuthToken: ptyAuth?.value,
+            bindHost,
+            ptyBindHost,
             logLevel: opts.logLevel ?? filteredLoggerBackend.getMinLevel(),
         });
     });
@@ -200,10 +227,10 @@ async function start(argv: string[]): Promise<void> {
         if (requestContext === undefined) {
             throw new Error("request-context execute returned no requestContext");
         }
-        await writeRequestContextDiskCache(ctx, REQUEST_CONTEXT_DISK_CACHE_PATH, requestContext);
+        await writeRequestContextDiskCache(ctx, resolveRequestContextDiskCachePath(dataDir), requestContext);
     }
     // Server implementation
-    async function runServer(opts: Omit<ServeOptions, "logLevel"> & { logLevel: string }) {
+    async function runServer(opts: Omit<ServeOptions, "logLevel" | "authToken"> & { logLevel: string; authToken: string }) {
         // Initialize tracing early, before any spans are created
         // Only enable tracing when ghost mode is disabled and trace endpoint + token are provided
         const willInitTracing = !!(opts.traceEndpoint && opts.traceAuthToken && !opts.ghostMode);
@@ -389,14 +416,14 @@ async function start(argv: string[]): Promise<void> {
             onPing: async (pingCtx) => {
                 fuseLivenessMonitor.reportRelaunchReason(pingCtx);
             },
-        })).catch((error: unknown) => {
+        }, opts.bindHost)).catch((error: unknown) => {
             endStartupSpan(error);
             execDaemonLogger.error(startupCtx, "Failed to start daemon", error);
             process.exit(1);
         });
         reportEvent(startupCtx, "startup.http_listening");
         // Start the PTY host WebSocket server
-        const stopPtyWebSocketServer = await runStartupStep("exec_daemon.startup.start_pty_websocket_server", async (stepCtx) => await startPtyHostWebSocketServer(stepCtx, opts.ptyWebsocketPort, ptyManager, tmuxSessionManager, opts.ptyAuthToken, machineResourceMonitor)).catch((error: unknown) => {
+        const stopPtyWebSocketServer = await runStartupStep("exec_daemon.startup.start_pty_websocket_server", async (stepCtx) => await startPtyHostWebSocketServer(stepCtx, opts.ptyWebsocketPort, ptyManager, tmuxSessionManager, opts.ptyAuthToken, machineResourceMonitor, opts.ptyBindHost)).catch((error: unknown) => {
             endStartupSpan(error);
             execDaemonLogger.error(startupCtx, "Failed to start PTY WebSocket server", error);
             process.exit(1);

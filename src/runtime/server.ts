@@ -160,7 +160,7 @@ export function createManagedEnvironmentUpdatedHandler(tmuxSessionManager: TmuxS
  * @param remoteAccessService RemoteAccessService instance for remote access operations
  * @returns Promise that resolves to a function that stops the server
  */
-export async function startServer(globalContext: Context, port: number, authToken: string, resourceAccessor: ListableResourceAccessor, gitService: GitService, remoteAccessService: ControlRemoteAccessService, artifactUploadManagerProvider: ArtifactUploadManagerProvider, workspacePaths: string[], tmuxSessionManager: TmuxSessionManager | undefined, secretRedactionState: ControlServerOptions["secretRedactionState"], scopedSecretStore: ControlServerOptions["scopedSecretStore"], onReloadAgentSkills: ControlServerOptions["onReloadAgentSkills"], onReloadPlugins: ControlServerOptions["onReloadPlugins"], getComputerUseSupported: ControlServerOptions["getComputerUseSupported"], onLoadMcpServers: ControlServerOptions["onLoadMcpServers"], desktopLeaseStore: ControlServerOptions["desktopLeaseStore"], machineResourceMonitor: MachineResourceMonitor | undefined, hooks?: { onPing?: ControlServerOptions["onPing"] }) {
+export async function startServer(globalContext: Context, port: number, authToken: string, resourceAccessor: ListableResourceAccessor, gitService: GitService, remoteAccessService: ControlRemoteAccessService, artifactUploadManagerProvider: ArtifactUploadManagerProvider, workspacePaths: string[], tmuxSessionManager: TmuxSessionManager | undefined, secretRedactionState: ControlServerOptions["secretRedactionState"], scopedSecretStore: ControlServerOptions["scopedSecretStore"], onReloadAgentSkills: ControlServerOptions["onReloadAgentSkills"], onReloadPlugins: ControlServerOptions["onReloadPlugins"], getComputerUseSupported: ControlServerOptions["getComputerUseSupported"], onLoadMcpServers: ControlServerOptions["onLoadMcpServers"], desktopLeaseStore: ControlServerOptions["desktopLeaseStore"], machineResourceMonitor: MachineResourceMonitor | undefined, hooks?: { onPing?: ControlServerOptions["onPing"] }, bindHost?: string) {
     const startupCtx = withSpan(globalContext.withName("exec_daemon.server.start_http"));
     const startupSpan = getSpan(startupCtx);
     startupSpan?.setAttribute("server.port", port);
@@ -259,15 +259,15 @@ export async function startServer(globalContext: Context, port: number, authToke
         const server = nodeHttp.createServer(handler);
         // Start listening
         await new Promise<void>((resolve, reject) => {
-            server.listen(port, (err?: Error) => {
-                if (err) {
-                    reject(err);
-                }
+            const onListen = (err?: Error) => {
+                if (err) reject(err);
                 else {
-                    logger.info(startupCtx, "ExecDaemon server listening", { port });
+                    logger.info(startupCtx, "ExecDaemon server listening", { port, bindHost: bindHost ?? "all-interfaces" });
                     resolve();
                 }
-            });
+            };
+            if (bindHost === undefined) server.listen(port, onListen);
+            else server.listen(port, bindHost, onListen);
         });
         startupSpan?.end();
         // Return closure to stop the server
@@ -298,7 +298,7 @@ export async function startServer(globalContext: Context, port: number, authToke
  *   WebSocket the Terminal tab uses (no CORS preflight against cursorvm.com)
  * @returns Promise that resolves to a function that stops the server
  */
-export async function startPtyHostWebSocketServer(globalContext: Context, port: number, ptyManager: PtyHostManagerPort, tmuxSessionManager: TmuxSessionManager | undefined, ptyAuthToken: string | undefined, machineResourceMonitor: MachineResourceMonitor | undefined) {
+export async function startPtyHostWebSocketServer(globalContext: Context, port: number, ptyManager: PtyHostManagerPort, tmuxSessionManager: TmuxSessionManager | undefined, ptyAuthToken: string | undefined, machineResourceMonitor: MachineResourceMonitor | undefined, bindHost?: string) {
     const startupCtx = withSpan(globalContext.withName("exec_daemon.server.start_pty_ws"));
     const startupSpan = getSpan(startupCtx);
     startupSpan?.setAttribute("server.port", port);
@@ -342,7 +342,7 @@ export async function startPtyHostWebSocketServer(globalContext: Context, port: 
             })
             : undefined;
         // Create WebSocket server
-        const wss = new WebSocketServer({ port });
+        const wss = new WebSocketServer(bindHost === undefined ? { port } : { port, host: bindHost });
         // Apply the ConnectRPC WebSocket adapter
         connectWebSocketAdapter(wss, {
             routes: (router) => {

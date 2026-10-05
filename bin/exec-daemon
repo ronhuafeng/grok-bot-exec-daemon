@@ -16,7 +16,7 @@ if [[ ! -f "$RUNTIME/index.js" || ! -x "$RUNTIME/exec-daemon" ]]; then
   exit 1
 fi
 if [[ ! -x "$RUNTIME/node" ]]; then
-  printf '%s\n' 'The original Node binary was not included. Provision a compatible node in dist/runtime/node and run npm run doctor. See docs/runtime.md.' >&2
+  printf '%s\n' 'dist/runtime/node is missing. Run npm run provision, then npm run doctor. See docs/runtime.md.' >&2
   exit 1
 fi
 exec "$RUNTIME/exec-daemon" "$@"

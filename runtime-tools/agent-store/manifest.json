@@ -1,0 +1,12 @@
+{
+  "name": "cursor-agent-store-fuse",
+  "version": "agent-store-fuse",
+  "platform": "linux-x64",
+  "sha256": "5974ebd1e38b736412940eb61561503c8c94fe9d2493d2d9d9f2e79583fe1bee",
+  "size": 9377768,
+  "mode": "100755",
+  "path": "linux-x64/cursor-agent-store-fuse",
+  "storage": "git-lfs",
+  "filesystemType": "fuse.agent-store",
+  "observedPath": "/usr/local/bin/cursor-agent-store-fuse"
+}

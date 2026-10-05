@@ -1,0 +1,12 @@
+{
+  "name": "rg",
+  "version": "15.1.0-cursor5",
+  "revision": "c3e3c2f7ec",
+  "platform": "linux-x64",
+  "sha256": "d42ae51b08e3a368ff9504ea713dc05934a6315f759531eb1f714147dd9989a5",
+  "size": 5396392,
+  "mode": "100755",
+  "path": "linux-x64/rg",
+  "observedIn": "exec-daemon build 2026-10-04T20:39:01.722Z",
+  "feature": "--cursor-ignore"
+}

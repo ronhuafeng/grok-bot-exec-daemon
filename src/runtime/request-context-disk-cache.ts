@@ -34,7 +34,19 @@ export const logger = createLogger("exec-daemon:request-context-disk-cache");
  */
 export const REQUEST_CONTEXT_DISK_CACHE_VERSION = 1;
 export const REQUEST_CONTEXT_DISK_CACHE_FILENAME = "request-context-cache.json";
+/** Compatibility location used only when no data directory is configured. */
 export const REQUEST_CONTEXT_DISK_CACHE_PATH = "/opt/cursor/.exec-daemon/request-context-cache.json";
+/**
+ * Daemon-owned cache path. A configured data directory keeps the file inside
+ * that mount; otherwise the historical `/opt/cursor` location is preserved.
+ */
+export function resolveRequestContextDiskCachePath(dataDir: string | undefined): string {
+    const trimmed = dataDir?.trim();
+    if (trimmed !== undefined && trimmed !== "") {
+        return nodePath.join(trimmed, REQUEST_CONTEXT_DISK_CACHE_FILENAME);
+    }
+    return REQUEST_CONTEXT_DISK_CACHE_PATH;
+}
 /**
  * Atomically write the whole computed `RequestContext` to disk (temp file +
  * rename) so a reader never observes a partially-written file even if the build

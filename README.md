@@ -68,7 +68,10 @@ npm run doctor
 ./bin/exec-daemon --help
 ```
 
-The imported native addons target Linux x86-64. A compatible original-runtime
-Node executable and some external tools require separate provisioning. A green
-build does not establish native ABI, live RPC, browser, PTY or sandbox acceptance.
+The imported native addons target Linux x86-64. The supported runtime is official
+Node.js 22.14.0, ABI 127. `npm run provision` installs it, the captured ripgrep
+fork, `cursorsandbox`, and the Git LFS copies of `origin`, `tmux-root`, and
+`cursor-agent-store-fuse` into `dist/runtime/`. `npm run test:live` then proves
+native loading, PTY spawn, ripgrep `--cursor-ignore`, CLI help, sandbox write
+denial, and those three tools. A green `npm run check` does not start the daemon.
 See [runtime requirements](docs/runtime.md) and [verification limits](docs/strict-typescript.md).
