@@ -79,6 +79,13 @@ module's own directory. Executable discovery separately keeps its established
 
 ## Build and verification
 
+Verification is property-oriented: project behavior is the subject of a claim,
+while tests, local fixtures and GitHub Actions are proof harnesses used to obtain
+evidence about that claim. A harness failure is not automatically a behavior
+contradiction, and a green harness proves only the behavior it actually observes.
+See [property-oriented verification](verification-methodology.md) for the
+interpretation and acceptance rules used by this project.
+
 1. Strictly check every maintained source, tool and test before emitting. Clear
    only the disposable compiler output, rejecting symlinked output directories.
 2. Verify the complete 2,270-file immutable inventory and original Git tree.
