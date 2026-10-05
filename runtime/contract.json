@@ -36,9 +36,15 @@
   },
   "host": {
     "core": { "os": "linux", "arch": "x64", "libc": "glibc" },
-    "sandbox": { "executable": "bwrap", "unprivilegedUserNamespace": true },
+    "sandbox": {
+      "executable": "bwrap",
+      "backend": "bubblewrap",
+      "unprivilegedUserNamespace": "viable-probe-required",
+      "apparmorRestrictUnprivilegedUserns": "observed-restriction-fails; missing-file-is-not-sufficient; unreadable-fails"
+    },
     "agentStore": { "device": "/dev/fuse", "fuseConf": "user_allow_other", "executable": "fusermount3" },
-    "cgroup": { "version": 2, "mount": "/sys/fs/cgroup" }
+    "cgroup": { "version": 2, "mount": "/sys/fs/cgroup" },
+    "scopeNote": "Preflight records observed-host unless the caller passes --scope prepared-runner. It never changes sysctls, AppArmor, or fuse.conf."
   },
   "desktop": {
     "sharedLibraries": ["libfreetype.so.6", "libavcodec.so.60", "libavformat.so.60", "libavutil.so.58", "libswscale.so.7"]
