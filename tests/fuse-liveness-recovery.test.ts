@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { AGENT_STORE_FUSE_BINARY_CMDLINE_NEEDLE, AGENT_STORE_FUSE_PID_FILE } from '../src/interop/vendor/constants-agent-store-fuse.js';
 import { AGENT_STORE_MOUNT_ROOT } from '../src/interop/vendor/constants-agent-store-ids.js';
 import { createContext } from '../src/interop/vendor/context-core.js';
-import { FuseLivenessMonitor, type FuseLivenessHost, type ProbeProcess, type ScheduledProbe } from '../src/runtime/fuseLiveness.js';
+import { withSpan } from '../src/interop/vendor/context-otel.js';
+import { FuseLivenessMonitor, FUSE_LIVENESS_RELAUNCH_EVENT, FUSE_LIVENESS_RELAUNCH_REASON, type FuseLivenessHost, type ProbeProcess, type ScheduledProbe } from '../src/runtime/fuseLiveness.js';
 
 const FUSE_PID = 4242;
 const REPLACEMENT_PID = 5252;
@@ -22,7 +23,7 @@ interface QueuedTimer {
   canceled: boolean;
 }
 
-type Mismatch = 'cmdline' | 'pid';
+type Mismatch = 'cmdline' | 'pid' | 'grace';
 
 function matchingCmdline(): string {
   return `/usr/local/bin/${AGENT_STORE_FUSE_BINARY_CMDLINE_NEEDLE} --backend-mode mock`;
@@ -31,12 +32,14 @@ function matchingCmdline(): string {
 function createHarness(mismatch?: Mismatch): {
   host: FuseLivenessHost;
   signals: [number, NodeJS.Signals][];
+  aborts: string[];
   probes: HungProbe[];
   flushNext: () => QueuedTimer;
   switched: () => boolean;
   bind: (monitor: FuseLivenessMonitor) => void;
 } {
   const signals: [number, NodeJS.Signals][] = [];
+  const aborts: string[] = [];
   const probes: HungProbe[] = [];
   const timers: QueuedTimer[] = [];
   let monitor: FuseLivenessMonitor | undefined;
@@ -60,7 +63,8 @@ function createHarness(mismatch?: Mismatch): {
     },
     readFile(file) {
       if (file !== AGENT_STORE_FUSE_PID_FILE) return undefined;
-      if (mismatch !== undefined && monitor?.killWarranted === true && !switched) {
+      if (mismatch === 'grace' && signals.some(([, signal]) => signal === 'SIGTERM')) return `${REPLACEMENT_PID}\n`;
+      if (mismatch !== undefined && mismatch !== 'grace' && monitor?.killWarranted === true && !switched) {
         switched = true;
         if (mismatch === 'pid') return `${REPLACEMENT_PID}\n`;
       }
@@ -75,7 +79,7 @@ function createHarness(mismatch?: Mismatch): {
       return 'unrelated-service';
     },
     kill(pid, signal) { signals.push([pid, signal]); },
-    abortConnection() {},
+    abortConnection(mountRoot) { aborts.push(mountRoot); },
     renameFile: () => false,
     removeFile() {},
     safeCwd: () => '/tmp',
@@ -85,6 +89,7 @@ function createHarness(mismatch?: Mismatch): {
   return {
     host,
     signals,
+    aborts,
     probes,
     flushNext() {
       const timer = timers.find(item => !item.canceled);
@@ -139,6 +144,7 @@ test('two hung probes SIGTERM then SIGKILL the matching agent-store fuse pid', (
     const grace = harness.flushNext();
     assert.equal(grace.ms, KILL_GRACE_MS);
     assert.deepEqual(harness.signals, [[FUSE_PID, 'SIGTERM'], [FUSE_PID, 'SIGKILL']]);
+    assert.deepEqual(harness.aborts, [AGENT_STORE_MOUNT_ROOT, AGENT_STORE_MOUNT_ROOT]);
     assert.equal(harness.switched(), false);
   } finally {
     monitor.stop();
@@ -172,7 +178,53 @@ test('a hung fuse is not killed when the pid file changes to a different live pi
     assert.equal(harness.switched(), true);
     assert.equal(harness.signals.some(([pid]) => pid === FUSE_PID || pid === REPLACEMENT_PID), false);
     assert.deepEqual(harness.signals, []);
+    assert.deepEqual(harness.aborts, []);
   } finally {
     monitor.stop();
   }
+});
+
+test('a remount during the kill grace aborts only the original mount', () => {
+  const harness = createHarness('grace');
+  const monitor = startMonitor(harness.host);
+  harness.bind(monitor);
+  try {
+    driveTwoHungDeadlines(harness.flushNext, monitor);
+    assert.deepEqual(harness.signals, [[FUSE_PID, 'SIGTERM']]);
+    assert.deepEqual(harness.aborts, [AGENT_STORE_MOUNT_ROOT]);
+    harness.flushNext();
+    assert.deepEqual(harness.signals, [[FUSE_PID, 'SIGTERM']]);
+    assert.deepEqual(harness.aborts, [AGENT_STORE_MOUNT_ROOT]);
+  } finally {
+    monitor.stop();
+  }
+});
+
+test('a relaunch reason is reported once and then removed', () => {
+  const events: string[] = [];
+  const removed: string[] = [];
+  const reasonPath = '/tmp/exec-daemon-fuse-reason';
+  const host: FuseLivenessHost = {
+    now: () => 0,
+    schedule: () => ({ cancel() {} }),
+    spawnProbe: () => { throw new Error('probe not used'); },
+    readFile: file => file === `${reasonPath}.reporting` ? `${FUSE_LIVENESS_RELAUNCH_REASON}\n` : undefined,
+    processAlive: () => false,
+    readCmdline: () => undefined,
+    kill() {},
+    abortConnection() {},
+    renameFile: () => true,
+    removeFile(file) { removed.push(file); },
+    safeCwd: () => '/tmp',
+    reportEvent(_ctx, event) { events.push(event); },
+    spanFactory: ctx => ctx,
+  };
+  const monitor = new FuseLivenessMonitor({ host, relaunchReasonPath: reasonPath });
+  monitor.reportRelaunchReason(withSpan(createContext()));
+  assert.deepEqual(events, [FUSE_LIVENESS_RELAUNCH_EVENT]);
+  assert.deepEqual(removed, [`${reasonPath}.reporting`]);
+  events.length = 0;
+  host.renameFile = () => false;
+  monitor.reportRelaunchReason(withSpan(createContext()));
+  assert.deepEqual(events, []);
 });
