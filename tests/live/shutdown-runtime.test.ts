@@ -49,7 +49,7 @@ test('graceful shutdown releases listeners and daemon-owned children', { timeout
   await mkdir(home);
   await mkdir(data);
   await mkdir(tmuxTmp);
-  await writeFile(sleeper, '#!/bin/sh\nexec sleep 180\n');
+  await writeFile(sleeper, '#!/bin/sh\nsleep 180\n');
   await chmod(sleeper, 0o755);
   await run('git', ['init'], workspace);
   const httpPort = await freePort();
@@ -105,7 +105,7 @@ test('graceful shutdown releases listeners and daemon-owned children', { timeout
     assert.ok(spawned);
     socket.close();
     const owned = await run('pgrep', ['-f', sleeper]);
-    assert.equal(owned.status, 0);
+    assert.equal(owned.status, 0, owned.stdout);
     child.kill('SIGTERM');
     const stopped = Date.now() + 15000;
     while (child.exitCode === null && Date.now() < stopped) await new Promise(resolve => setTimeout(resolve, 100));
