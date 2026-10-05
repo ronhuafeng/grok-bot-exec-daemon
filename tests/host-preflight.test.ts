@@ -17,6 +17,14 @@ const ready: HostFacts = {
   apparmorRestrictsUserNamespaces: { state: 'observed', value: false, detail: 'kernel.apparmor_restrict_unprivileged_userns=0' },
   sandboxBackend: 'bubblewrap',
   sandboxBackendViable: { state: 'observed', value: true, detail: 'bubblewrap unprivileged user namespace probe succeeded' },
+  sharedLibraries: {
+    'libfreetype.so.6': true,
+    'libavcodec.so.60': true,
+    'libavdevice.so.60': true,
+    'libavformat.so.60': true,
+    'libavutil.so.58': true,
+    'libswscale.so.7': true,
+  },
 };
 
 function observed(value: boolean, detail: string): Observation<boolean> {
@@ -314,4 +322,21 @@ test('preflight records scope and does not change host configuration', { timeout
   const invalid = run(['--profile', 'core', '--scope', 'mutated']);
   assert.notEqual(invalid.status, 0);
   assert.match(invalid.stderr, /Unsupported host scope: mutated/);
+});
+
+test('desktop preflight names missing browser, display, and recording prerequisites separately', () => {
+  const readyDesktop = withFacts({
+    commands: { xdpyinfo: true, ffmpeg: true, ffprobe: true, 'google-chrome': true },
+  });
+  assert.equal(evaluateHost(readyDesktop, 'desktop').some(check => !check.ok), false);
+  assert.equal(evaluateHost(readyDesktop, 'supported').some(check => check.id === 'browser'), false);
+  const gaps = evaluateHost(withFacts({
+    commands: {},
+    sharedLibraries: { 'libfreetype.so.6': false, 'libavcodec.so.60': false, 'libavdevice.so.60': true, 'libavformat.so.60': true, 'libavutil.so.58': true, 'libswscale.so.7': true },
+  }), 'desktop');
+  const failed = new Map(gaps.filter(check => !check.ok).map(check => [check.id, check.detail]));
+  assert.match(failed.get('xdpyinfo') ?? '', /X11 computer-use cannot start/);
+  assert.match(failed.get('ffmpeg') ?? '', /screen recording cannot start/);
+  assert.match(failed.get('browser') ?? '', /browser computer-use cannot start/);
+  assert.match(failed.get('library:libavcodec.so.60') ?? '', /polished recording cannot load/);
 });

@@ -1,0 +1,48 @@
+name: Desktop proof
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-proof-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: Linux desktop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact revision
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          lfs: true
+          persist-credentials: false
+      - name: Set up project-tooling Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Install X11, ffmpeg, and non-headless Chrome
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb x11-utils ffmpeg ca-certificates curl
+          curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb
+          sudo apt-get install -y /tmp/chrome.deb
+      - name: Install project metadata without lifecycle hooks
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Compile TypeScript
+        run: node --experimental-strip-types tools/compile.ts
+      - name: Build the installed runtime
+        run: node dist/project/tools/build.js
+      - name: Provision locked runtime tools
+        run: node dist/project/tools/provision-runtime-tools.js --profile core
+      - name: Check the desktop host contract
+        run: node dist/project/tools/preflight-host.js --profile desktop
+      - name: Prove non-headless computer-use and recording
+        run: node --test --test-reporter=spec dist/project/tests/desktop/desktop-runtime.test.js

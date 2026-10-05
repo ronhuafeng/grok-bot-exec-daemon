@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 
-export type HostProfile = 'core' | 'sandbox' | 'agent-store' | 'cgroup' | 'supported';
+export type HostProfile = 'core' | 'sandbox' | 'agent-store' | 'cgroup' | 'desktop' | 'supported';
 export type HostScope = 'observed-host' | 'prepared-runner';
 export type ObservationState = 'observed' | 'unavailable' | 'unreadable';
 
@@ -22,6 +22,7 @@ export interface HostFacts {
   apparmorRestrictsUserNamespaces: Observation<boolean>;
   sandboxBackend: 'bubblewrap';
   sandboxBackendViable: Observation<boolean>;
+  sharedLibraries: Readonly<Record<string, boolean>>;
 }
 
 export interface HostConfigurationRecord {
@@ -39,7 +40,9 @@ const fuseConfPath = '/etc/fuse.conf';
 const fuseDevicePath = '/dev/fuse';
 const cgroupControllersPath = '/sys/fs/cgroup/cgroup.controllers';
 const sandboxProbeTimeoutMs = 5_000;
-const supportedProfiles = new Set<HostProfile>(['core', 'sandbox', 'agent-store', 'cgroup', 'supported']);
+export const DESKTOP_SHARED_LIBRARIES = ['libfreetype.so.6', 'libavcodec.so.60', 'libavdevice.so.60', 'libavformat.so.60', 'libavutil.so.58', 'libswscale.so.7'] as const;
+
+const supportedProfiles = new Set<HostProfile>(['core', 'sandbox', 'agent-store', 'cgroup', 'desktop', 'supported']);
 const hostScopes = new Set<HostScope>(['observed-host', 'prepared-runner']);
 
 export function parseHostProfile(value: string): HostProfile {
@@ -52,7 +55,7 @@ export function parseHostScope(value: string): HostScope {
   return value as HostScope;
 }
 
-function includes(profile: HostProfile, part: Exclude<HostProfile, 'supported'>): boolean {
+function includes(profile: HostProfile, part: Exclude<HostProfile, 'supported' | 'desktop'>): boolean {
   return profile === 'supported' || profile === part;
 }
 
@@ -162,7 +165,30 @@ export function evaluateHost(facts: HostFacts, profile: HostProfile): HostCheck[
   if (includes(profile, 'cgroup')) {
     checks.push({ id: 'cgroup-v2', ok: facts.cgroupV2, detail: facts.cgroupV2 ? 'cgroup v2 is mounted at /sys/fs/cgroup' : 'cgroup v2 was not found at /sys/fs/cgroup' });
   }
+  if (profile === 'desktop') {
+    checks.push(commandCheck(facts, 'xdpyinfo', 'xdpyinfo is on PATH', 'xdpyinfo is not on PATH; X11 computer-use cannot start'));
+    checks.push(commandCheck(facts, 'ffmpeg', 'ffmpeg is on PATH', 'ffmpeg is not on PATH; screen recording cannot start'));
+    checks.push(commandCheck(facts, 'ffprobe', 'ffprobe is on PATH', 'ffprobe is not on PATH; recording metadata cannot be checked'));
+    const browser = facts.commands['google-chrome'] === true || facts.commands.chromium === true;
+    checks.push({
+      id: 'browser',
+      ok: browser,
+      detail: browser ? 'a non-headless Chrome or Chromium executable is on PATH' : 'google-chrome and chromium are not on PATH; browser computer-use cannot start',
+    });
+    for (const library of DESKTOP_SHARED_LIBRARIES) {
+      checks.push({
+        id: `library:${library}`,
+        ok: facts.sharedLibraries[library] === true,
+        detail: facts.sharedLibraries[library] === true ? `${library} is installed` : `${library} was not found; polished recording cannot load`,
+      });
+    }
+  }
   return checks;
+}
+
+function commandCheck(facts: HostFacts, id: string, present: string, absent: string): HostCheck {
+  const ok = facts.commands[id] === true;
+  return { id, ok, detail: ok ? present : absent };
 }
 
 export function recordHostConfiguration(facts: HostFacts, scope: HostScope): HostConfigurationRecord {
@@ -288,9 +314,20 @@ function probeSandbox(bwrapInstalled: boolean): Observation<boolean> {
   }
 }
 
-function commandExists(name: 'bwrap' | 'fusermount3'): boolean {
+function commandExists(name: string): boolean {
+  if (!/^[A-Za-z0-9._-]+$/.test(name)) return false;
   const result = spawnSync('sh', ['-c', `command -v ${name}`], { encoding: 'utf8' });
   return result.status === 0 && result.stdout.trim() !== '';
+}
+
+function sharedLibraries(): Record<string, boolean> {
+  const listed = spawnSync('ldconfig', ['-p'], { encoding: 'utf8' });
+  const text = listed.status === 0 ? listed.stdout : '';
+  const libraries: Record<string, boolean> = {};
+  for (const library of DESKTOP_SHARED_LIBRARIES) {
+    libraries[library] = text.includes(library) || existsSync(`/lib/x86_64-linux-gnu/${library}`) || existsSync(`/usr/lib/x86_64-linux-gnu/${library}`);
+  }
+  return libraries;
 }
 
 function libcVersion(): string | undefined {
@@ -314,12 +351,21 @@ export function collectHostFacts(): HostFacts {
     platform: process.platform,
     arch: process.arch,
     libc: libcVersion(),
-    commands: { bwrap, fusermount3: commandExists('fusermount3') },
+    commands: {
+      bwrap,
+      fusermount3: commandExists('fusermount3'),
+      xdpyinfo: commandExists('xdpyinfo'),
+      ffmpeg: commandExists('ffmpeg'),
+      ffprobe: commandExists('ffprobe'),
+      'google-chrome': commandExists('google-chrome'),
+      chromium: commandExists('chromium'),
+    },
     fuseDevice: fuseDevicePresent(),
     fuseUserAllowOther: readFuseUserAllowOther(),
     cgroupV2: cgroupV2Mounted(),
     apparmorRestrictsUserNamespaces: readApparmorRestriction(),
     sandboxBackend: 'bubblewrap',
     sandboxBackendViable: probeSandbox(bwrap),
+    sharedLibraries: sharedLibraries(),
   };
 }
