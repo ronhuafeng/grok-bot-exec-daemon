@@ -644,4 +644,20 @@ export class TmuxSessionManager {
             session,
         };
     }
+    /**
+     * Stop the tmux server started by this manager. `execTmux` uses the daemon
+     * environment, including `TMUX_TMPDIR`, so servers on other sockets are untouched.
+     * A server that never started is a no-op.
+     */
+    async dispose() {
+        try {
+            await this.execTmux(["kill-server"]);
+        }
+        catch (error) {
+            if (error instanceof TmuxNoServerError) {
+                return;
+            }
+            throw error;
+        }
+    }
 }

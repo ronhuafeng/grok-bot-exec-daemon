@@ -39,3 +39,32 @@ export function resolveBindHost(cli: string | undefined, environment: string | u
     if (value.length > 255 || /\s/.test(value)) throw new Error("Invalid bind host");
     return value;
 }
+
+const LOOPBACK_BIND_HOSTS: ReadonlySet<string> = new Set(["127.0.0.1", "::1", "localhost"]);
+
+export type PtyListenerMode =
+    | { mode: "authenticated"; token: string; source: SecretSource }
+    | { mode: "disabled" }
+    | { mode: "anonymous"; bindHost: string };
+
+/**
+ * A present PTY secret always authenticates. With no secret, the listener stays
+ * down unless anonymous mode was requested on an explicit loopback bind host.
+ * Empty secrets are already `undefined` from {@link resolveAuthSecret}.
+ */
+export function decidePtyListener(input: {
+    secret: ResolvedSecret | undefined;
+    allowAnonymous: boolean;
+    bindHost: string | undefined;
+}): PtyListenerMode {
+    if (input.secret !== undefined) {
+        return { mode: "authenticated", token: input.secret.value, source: input.secret.source };
+    }
+    if (!input.allowAnonymous) {
+        return { mode: "disabled" };
+    }
+    if (input.bindHost !== undefined && LOOPBACK_BIND_HOSTS.has(input.bindHost)) {
+        return { mode: "anonymous", bindHost: input.bindHost };
+    }
+    throw new Error("Unauthenticated PTY requires an explicit loopback bind host");
+}

@@ -36,6 +36,7 @@ export function createServeCommand() {
         .option("--pty-bind-host <host>", "Host interface for the PTY WebSocket listener. Defaults to the HTTP bind host when that is set.")
         .option("--auth-token <token>", "HTTP authentication token. Prefer EXEC_DAEMON_AUTH_TOKEN or EXEC_DAEMON_AUTH_TOKEN_FILE so the secret is not in argv.")
         .option("--pty-auth-token <token>", "PTY WebSocket authentication token. Prefer EXEC_DAEMON_PTY_AUTH_TOKEN or EXEC_DAEMON_PTY_AUTH_TOKEN_FILE.")
+        .option("--allow-unauthenticated-pty", "Explicitly start the PTY listener without authentication. Requires a loopback --pty-bind-host or --bind-host.", false)
         .addOption(new Option("--log-level <level>", "Log level").choices([
         "debug",
         "info",
