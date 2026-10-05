@@ -80,3 +80,30 @@ paths; see [verification](strict-typescript.md).
 Stop a running daemon before rebuilding `dist/runtime/`. The builder preserves
 separately provisioned files there, but updates owned payload files individually;
 it is a developer build tool, not a live-upgrade/deployment mechanism.
+
+## Host preflight
+
+`npm run preflight -- --profile supported` checks the Linux host before startup.
+It reports architecture, glibc, `bwrap`, unprivileged user namespaces, `/dev/fuse`,
+`user_allow_other`, `fusermount3`, and cgroup v2. It does not change sysctls or
+FUSE configuration. The runtime-proof workflow prepares a GitHub-hosted runner
+and then runs this same check. Core-only hosts can use `--profile core`.
+
+## Writable state
+
+`CURSOR_EXEC_DAEMON_DATA_DIR` is the mountable root for daemon-owned mutable
+files: `logs/`, `artifacts/`, `recording-staging/`, and
+`request-context-cache.json`. Without it, those files keep their compatibility
+locations under `/opt/cursor`. Agent Store mounts and the upstream sandbox
+policy directory under the user home stay outside this data root. HTTP and PTY
+listeners bind to all interfaces unless `--bind-host` or `EXEC_DAEMON_BIND_HOST`
+is set. The PTY listener uses that host unless `--pty-bind-host` or
+`EXEC_DAEMON_PTY_BIND_HOST` overrides it. Recommended production supplies
+`EXEC_DAEMON_AUTH_TOKEN` and `EXEC_DAEMON_PTY_AUTH_TOKEN`, or the matching
+`*_FILE` paths, instead of putting secrets in argv. CLI values still win when
+present. TLS for a public listener belongs to the surrounding deployment.
+
+A successful Runtime proof writes `runtime-proof.json`. That file records the
+tested commit, host, Node ABI, locked tool hashes, and passed live checks. It is
+conformance evidence for that run, not a provenance attestation or a security
+review. Provenance remains in [provenance](provenance.md).

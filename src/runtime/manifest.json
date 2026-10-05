@@ -327,6 +327,10 @@
     {
       "file": "configuration.ts",
       "purpose": "Cohesive setup JSON ingress guards and policy parsing; directly imported and tested without setup lifecycle or native initialization."
+    },
+    {
+      "file": "runtime-ingress.ts",
+      "purpose": "Resolve bind hosts and auth secrets from CLI, files, or environment before the daemon listens."
     }
   ],
   "retiredSources": [

@@ -1,5 +1,6 @@
 # Generated project output and local development state
 /dist/
+/runtime-proof.json
 /node_modules/
 /.work/
 /coverage/

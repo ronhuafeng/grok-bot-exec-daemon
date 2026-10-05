@@ -121,14 +121,19 @@ test('serve authenticates HTTP Ping and PTY WebSocket spawn', { timeout: 120000 
     'serve',
     '--port', String(httpPort),
     '--pty-websocket-port', String(ptyPort),
-    '--auth-token', httpToken,
-    '--pty-auth-token', ptyToken,
+    '--bind-host', '127.0.0.1',
     '--rg-path', path.join(buildRoot, 'rg'),
     '--project-dir', workspace,
     '--log-level', 'info',
   ], {
     cwd: workspace,
-    env: { ...process.env, HOME: home, CURSOR_EXEC_DAEMON_DATA_DIR: data },
+    env: {
+      ...process.env,
+      HOME: home,
+      CURSOR_EXEC_DAEMON_DATA_DIR: data,
+      EXEC_DAEMON_AUTH_TOKEN: httpToken,
+      EXEC_DAEMON_PTY_AUTH_TOKEN: ptyToken,
+    },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   child.stdout?.on('data', (chunk: Buffer) => logs.push(chunk));
@@ -144,6 +149,7 @@ test('serve authenticates HTTP Ping and PTY WebSocket spawn', { timeout: 120000 
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     assert.equal(ready, true, output());
+    assert.equal(output().includes(httpToken) || output().includes(ptyToken), false);
     const anonymous = await ping(httpPort, undefined);
     const wrong = await ping(httpPort, 'wrong-token');
     const accepted = await ping(httpPort, httpToken);

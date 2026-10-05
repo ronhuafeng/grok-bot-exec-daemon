@@ -32,8 +32,10 @@ export function createServeCommand() {
         .description("Start the exec daemon server")
         .option("-p, --port <port>", "Server port", (val) => parseInt(val, 10), 8080)
         .option("--pty-websocket-port <port>", "WebSocket port for PTY host service", (val) => parseInt(val, 10), 8081)
-        .requiredOption("--auth-token <token>", "Authentication token (required)")
-        .option("--pty-auth-token <token>", "Authentication token for PTY WebSocket RPCs")
+        .option("--bind-host <host>", "Host interface for the HTTP listener. Defaults to all interfaces.")
+        .option("--pty-bind-host <host>", "Host interface for the PTY WebSocket listener. Defaults to the HTTP bind host when that is set.")
+        .option("--auth-token <token>", "HTTP authentication token. Prefer EXEC_DAEMON_AUTH_TOKEN or EXEC_DAEMON_AUTH_TOKEN_FILE so the secret is not in argv.")
+        .option("--pty-auth-token <token>", "PTY WebSocket authentication token. Prefer EXEC_DAEMON_PTY_AUTH_TOKEN or EXEC_DAEMON_PTY_AUTH_TOKEN_FILE.")
         .addOption(new Option("--log-level <level>", "Log level").choices([
         "debug",
         "info",

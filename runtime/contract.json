@@ -34,6 +34,12 @@
     "filesystemType": "fuse.agent-store",
     "mountPath": "/cursor/stores"
   },
+  "host": {
+    "core": { "os": "linux", "arch": "x64", "libc": "glibc" },
+    "sandbox": { "executable": "bwrap", "unprivilegedUserNamespace": true },
+    "agentStore": { "device": "/dev/fuse", "fuseConf": "user_allow_other", "executable": "fusermount3" },
+    "cgroup": { "version": 2, "mount": "/sys/fs/cgroup" }
+  },
   "desktop": {
     "sharedLibraries": ["libfreetype.so.6", "libavcodec.so.60", "libavformat.so.60", "libavutil.so.58", "libswscale.so.7"]
   }

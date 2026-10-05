@@ -34,7 +34,7 @@ import { withOrbitOperationReporting } from "./orbit/operation-reporting.js";
 import { createReadOnlyVmDaemonBareRequestContextExecutor } from "./read-only-bare/request-context.js";
 import { ExecDaemonPolishedRecordingRenderer } from "./recording-renderer.js";
 import { RemoteAccessService } from "./remoteAccess.js";
-import { DiskBackedRequestContextExecutor, readRequestContextDiskCache, REQUEST_CONTEXT_DISK_CACHE_PATH } from "./request-context-disk-cache.js";
+import { DiskBackedRequestContextExecutor, readRequestContextDiskCache, resolveRequestContextDiskCachePath } from "./request-context-disk-cache.js";
 import { ScopedSecretStore, ScopedSecretsShellCoreExecutor } from "./scoped-secrets.js";
 import { withShellOomKillReporting } from "./shell-oom-kill.js";
 import { registerExecDaemonWebpCodec } from "./webp-codec-startup.js";
@@ -1048,7 +1048,7 @@ export async function setupDaemon(options: SetupDaemonOptions) {
                 buildFullRequestContextExecutor(includePluginsInRequestContext)
             : new DiskBackedRequestContextExecutor({
                 createFullExecutor: () => buildFullRequestContextExecutor(true),
-                read: (ctx) => readRequestContextDiskCache(ctx, REQUEST_CONTEXT_DISK_CACHE_PATH),
+                read: (ctx) => readRequestContextDiskCache(ctx, resolveRequestContextDiskCachePath(resolvedDataDir)),
                 getPluginRules: (ctx) => pluginSkillsService.getAllCursorRules(ctx),
                 getPluginAgentSkills: (ctx) => pluginSkillsService.getAllAgentSkills(ctx),
                 getPluginSubagents: () => pluginSubagentsService.getAllSubagents(),

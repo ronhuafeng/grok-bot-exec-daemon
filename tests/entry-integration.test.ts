@@ -55,7 +55,21 @@ for (const scenario of ['help', 'serve-help', 'missing-token', 'polished-present
   test(`real application module loading preserves CLI output and initialization effects: ${scenario}`, () => {
     const baseline = run('baseline', scenario);
     const candidate = run('candidate', scenario);
-    assert.deepEqual(candidate, baseline);
+    if (scenario === 'serve-help') {
+      assert.equal(candidate.status, baseline.status);
+      assert.deepEqual(candidate.events, baseline.events);
+      assert.match(candidate.stdout, /--bind-host <host>/);
+      assert.match(candidate.stdout, /EXEC_DAEMON_AUTH_TOKEN_FILE/);
+      assert.match(baseline.stdout, /Authentication token \(required\)/);
+    } else if (scenario === 'missing-token') {
+      assert.equal(candidate.status, 1);
+      assert.equal(baseline.status, 1);
+      assert.deepEqual(candidate.events, baseline.events);
+      assert.match(candidate.stderr, /HTTP auth token is required/);
+      assert.match(baseline.stderr, /required option '--auth-token/);
+    } else {
+      assert.deepEqual(candidate, baseline);
+    }
     assert.equal(candidate.status, scenario === 'missing-token' ? 1 : 0);
     assert.deepEqual(candidate.events.filter(event => event[0] === 'handler'), [
       ['handler', 'uncaughtException'], ['handler', 'unhandledRejection'],
