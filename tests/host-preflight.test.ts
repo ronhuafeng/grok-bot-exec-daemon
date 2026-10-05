@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadHostContract } from '../tools/lib/host-contract.js';
 import { collectHostFacts, evaluateHost, parseHostScope, recordHostConfiguration } from '../tools/lib/host-preflight.js';
+import { root } from '../tools/lib/project.js';
 import type { HostCheck, HostFacts, HostProfile, Observation } from '../tools/lib/host-preflight.js';
 
 const ready: HostFacts = {
@@ -326,7 +329,7 @@ test('preflight records scope and does not change host configuration', { timeout
 
 test('desktop preflight names missing browser, display, and recording prerequisites separately', () => {
   const readyDesktop = withFacts({
-    commands: { xdpyinfo: true, ffmpeg: true, ffprobe: true, 'google-chrome': true },
+    commands: { xdpyinfo: true, ffmpeg: true, ffprobe: true, xdotool: true, 'google-chrome': true },
   });
   assert.equal(evaluateHost(readyDesktop, 'desktop').some(check => !check.ok), false);
   assert.equal(evaluateHost(readyDesktop, 'supported').some(check => check.id === 'browser'), false);
@@ -339,4 +342,16 @@ test('desktop preflight names missing browser, display, and recording prerequisi
   assert.match(failed.get('ffmpeg') ?? '', /screen recording cannot start/);
   assert.match(failed.get('browser') ?? '', /browser computer-use cannot start/);
   assert.match(failed.get('library:libavcodec.so.60') ?? '', /polished recording cannot load/);
+});
+
+test('a host contract the preflight cannot represent is rejected', () => {
+  const committed = loadHostContract(JSON.parse(readFileSync(path.join(root, 'runtime/contract.json'), 'utf8')));
+  assert.equal(committed.sandbox.executable, 'bwrap');
+  assert.equal(committed.agentStore.device, '/dev/fuse');
+  assert.throws(() => loadHostContract({ host: { ...committed, sandbox: { ...committed.sandbox, backend: 'landlock' } } }), /cannot represent sandbox backend/);
+  assert.throws(() => loadHostContract({ host: { ...committed, cgroup: { ...committed.cgroup, version: 1 } } }), /cannot represent cgroup version/);
+  assert.throws(() => loadHostContract({ host: { ...committed, extraProbe: true } }), /cannot represent contract field host.extraProbe/);
+  const renamed = { ...committed, sandbox: { ...committed.sandbox, executable: 'custom-bwrap' } };
+  const check = evaluateHost(withFacts({ commands: {} }), 'sandbox', renamed);
+  assert.equal(check.find(item => item.id === 'bubblewrap')?.detail, 'custom-bwrap is not on PATH');
 });

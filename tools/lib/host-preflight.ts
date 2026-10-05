@@ -1,5 +1,8 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { committedHostContract } from './host-contract.js';
+import type { HostContract } from './host-contract.js';
 
 export type HostProfile = 'core' | 'sandbox' | 'agent-store' | 'cgroup' | 'desktop' | 'supported';
 export type HostScope = 'observed-host' | 'prepared-runner';
@@ -35,13 +38,7 @@ export interface HostConfigurationRecord {
 
 export interface HostCheck { id: string; ok: boolean; detail: string }
 
-const apparmorPath = '/proc/sys/kernel/apparmor_restrict_unprivileged_userns';
-const fuseConfPath = '/etc/fuse.conf';
-const fuseDevicePath = '/dev/fuse';
-const cgroupControllersPath = '/sys/fs/cgroup/cgroup.controllers';
 const sandboxProbeTimeoutMs = 5_000;
-export const DESKTOP_SHARED_LIBRARIES = ['libfreetype.so.6', 'libavcodec.so.60', 'libavdevice.so.60', 'libavformat.so.60', 'libavutil.so.58', 'libswscale.so.7'] as const;
-
 const supportedProfiles = new Set<HostProfile>(['core', 'sandbox', 'agent-store', 'cgroup', 'desktop', 'supported']);
 const hostScopes = new Set<HostScope>(['observed-host', 'prepared-runner']);
 
@@ -78,7 +75,7 @@ function observationReason(observation: Observation<boolean>, fallback: string):
   return observation.detail === '' ? fallback : observation.detail;
 }
 
-function userNamespaceDetail(facts: HostFacts): string {
+function userNamespaceDetail(facts: HostFacts, sysctlPath: string): string {
   const apparmor = facts.apparmorRestrictsUserNamespaces;
   const viability = facts.sandboxBackendViable;
   const context = backendContext(facts);
@@ -88,7 +85,7 @@ function userNamespaceDetail(facts: HostFacts): string {
   }
   if (apparmor.state === 'unreadable') {
     const reason = observationReason(apparmor, 'unreadable');
-    return `Cannot read ${apparmorPath}; an unreadable AppArmor observation does not prove unprivileged user namespaces are allowed (${context}): ${reason}`;
+    return `Cannot read ${sysctlPath}; an unreadable AppArmor observation does not prove unprivileged user namespaces are allowed (${context}): ${reason}`;
   }
   if (viable && apparmor.state === 'observed' && apparmor.value === false) {
     return `unprivileged user namespaces are allowed (${context})`;
@@ -110,14 +107,14 @@ function userNamespaceDetail(facts: HostFacts): string {
   return `bubblewrap did not demonstrate unprivileged user namespaces (${context}): ${reason}`;
 }
 
-function userNamespaceCheck(facts: HostFacts): HostCheck {
+function userNamespaceCheck(facts: HostFacts, sysctlPath: string): HostCheck {
   const apparmor = facts.apparmorRestrictsUserNamespaces;
   const restricted = apparmor.state === 'observed' && apparmor.value === true;
   const unreadable = apparmor.state === 'unreadable';
   return {
     id: 'user-namespace',
     ok: isObservedTrue(facts.sandboxBackendViable) && !restricted && !unreadable,
-    detail: userNamespaceDetail(facts),
+    detail: userNamespaceDetail(facts, sysctlPath),
   };
 }
 
@@ -128,54 +125,55 @@ function sandboxBackendCheck(facts: HostFacts): HostCheck {
   return { id: 'sandbox-backend', ok: false, detail: `${context}; ${reason}` };
 }
 
-function fuseAllowOtherCheck(observation: Observation<boolean>): HostCheck {
+function fuseAllowOtherCheck(observation: Observation<boolean>, fuseConf: string): HostCheck {
   if (observation.state === 'observed' && observation.value === true) {
     return { id: 'fuse-allow-other', ok: true, detail: 'user_allow_other is set' };
   }
   if (observation.state === 'observed' && observation.value === false) {
-    return { id: 'fuse-allow-other', ok: false, detail: '/etc/fuse.conf does not set user_allow_other' };
+    return { id: 'fuse-allow-other', ok: false, detail: `${fuseConf} does not set user_allow_other` };
   }
   if (observation.state === 'unavailable') {
-    return { id: 'fuse-allow-other', ok: false, detail: '/etc/fuse.conf is not present' };
+    return { id: 'fuse-allow-other', ok: false, detail: `${fuseConf} is not present` };
   }
   return {
     id: 'fuse-allow-other',
     ok: false,
-    detail: `Cannot read /etc/fuse.conf: ${observationReason(observation, 'unreadable')}`,
+    detail: `Cannot read ${fuseConf}: ${observationReason(observation, 'unreadable')}`,
   };
 }
 
 /** Read-only evaluation of supplied host facts. It does not read the host or change sysctls. */
-export function evaluateHost(facts: HostFacts, profile: HostProfile): HostCheck[] {
+export function evaluateHost(facts: HostFacts, profile: HostProfile, contract: HostContract = committedHostContract()): HostCheck[] {
   const checks: HostCheck[] = [];
   if (includes(profile, 'core')) {
-    checks.push({ id: 'platform', ok: facts.platform === 'linux' && facts.arch === 'x64', detail: `${facts.platform}/${facts.arch}` });
-    checks.push({ id: 'libc', ok: facts.libc?.toLowerCase().includes('glibc') === true, detail: facts.libc ?? 'glibc was not identified' });
+    checks.push({ id: 'platform', ok: facts.platform === contract.core.os && facts.arch === contract.core.arch, detail: `${facts.platform}/${facts.arch}` });
+    checks.push({ id: 'libc', ok: facts.libc?.toLowerCase().includes(contract.core.libc) === true, detail: facts.libc ?? `${contract.core.libc} was not identified` });
   }
   if (includes(profile, 'sandbox')) {
-    checks.push({ id: 'bubblewrap', ok: facts.commands.bwrap === true, detail: facts.commands.bwrap ? 'bwrap is on PATH' : 'bwrap is not on PATH' });
-    checks.push(userNamespaceCheck(facts));
+    const executable = contract.sandbox.executable;
+    checks.push({ id: 'bubblewrap', ok: facts.commands[executable] === true, detail: facts.commands[executable] === true ? `${executable} is on PATH` : `${executable} is not on PATH` });
+    checks.push(userNamespaceCheck(facts, contract.sandbox.apparmorSysctl));
     checks.push(sandboxBackendCheck(facts));
   }
   if (includes(profile, 'agent-store')) {
-    checks.push({ id: 'fuse-device', ok: facts.fuseDevice, detail: facts.fuseDevice ? '/dev/fuse is present' : '/dev/fuse is missing' });
-    checks.push(fuseAllowOtherCheck(facts.fuseUserAllowOther));
-    checks.push({ id: 'fusermount3', ok: facts.commands.fusermount3 === true, detail: facts.commands.fusermount3 ? 'fusermount3 is on PATH' : 'fusermount3 is not on PATH' });
+    const device = contract.agentStore.device;
+    const executable = contract.agentStore.executable;
+    checks.push({ id: 'fuse-device', ok: facts.fuseDevice, detail: facts.fuseDevice ? `${device} is present` : `${device} is missing` });
+    checks.push(fuseAllowOtherCheck(facts.fuseUserAllowOther, contract.agentStore.fuseConf));
+    checks.push({ id: executable, ok: facts.commands[executable] === true, detail: facts.commands[executable] === true ? `${executable} is on PATH` : `${executable} is not on PATH` });
   }
   if (includes(profile, 'cgroup')) {
-    checks.push({ id: 'cgroup-v2', ok: facts.cgroupV2, detail: facts.cgroupV2 ? 'cgroup v2 is mounted at /sys/fs/cgroup' : 'cgroup v2 was not found at /sys/fs/cgroup' });
+    checks.push({ id: 'cgroup-v2', ok: facts.cgroupV2, detail: facts.cgroupV2 ? `cgroup v2 is mounted at ${contract.cgroup.mount}` : `cgroup v2 was not found at ${contract.cgroup.mount}` });
   }
   if (profile === 'desktop') {
-    checks.push(commandCheck(facts, 'xdpyinfo', 'xdpyinfo is on PATH', 'xdpyinfo is not on PATH; X11 computer-use cannot start'));
-    checks.push(commandCheck(facts, 'ffmpeg', 'ffmpeg is on PATH', 'ffmpeg is not on PATH; screen recording cannot start'));
-    checks.push(commandCheck(facts, 'ffprobe', 'ffprobe is on PATH', 'ffprobe is not on PATH; recording metadata cannot be checked'));
-    const browser = facts.commands['google-chrome'] === true || facts.commands.chromium === true;
+    for (const executable of contract.desktop.executables) checks.push(desktopCommandCheck(facts, executable));
+    const browser = contract.desktop.browsers.some(name => facts.commands[name] === true);
     checks.push({
       id: 'browser',
       ok: browser,
-      detail: browser ? 'a non-headless Chrome or Chromium executable is on PATH' : 'google-chrome and chromium are not on PATH; browser computer-use cannot start',
+      detail: browser ? 'a non-headless Chrome or Chromium executable is on PATH' : `${contract.desktop.browsers.join(' and ')} are not on PATH; browser computer-use cannot start`,
     });
-    for (const library of DESKTOP_SHARED_LIBRARIES) {
+    for (const library of contract.desktop.sharedLibraries) {
       checks.push({
         id: `library:${library}`,
         ok: facts.sharedLibraries[library] === true,
@@ -186,9 +184,16 @@ export function evaluateHost(facts: HostFacts, profile: HostProfile): HostCheck[
   return checks;
 }
 
-function commandCheck(facts: HostFacts, id: string, present: string, absent: string): HostCheck {
-  const ok = facts.commands[id] === true;
-  return { id, ok, detail: ok ? present : absent };
+function desktopCommandCheck(facts: HostFacts, executable: string): HostCheck {
+  const ok = facts.commands[executable] === true;
+  const absent = executable === 'xdpyinfo'
+    ? 'xdpyinfo is not on PATH; X11 computer-use cannot start'
+    : executable === 'ffmpeg'
+      ? 'ffmpeg is not on PATH; screen recording cannot start'
+      : executable === 'ffprobe'
+        ? 'ffprobe is not on PATH; recording metadata cannot be checked'
+        : `${executable} is not on PATH`;
+  return { id: executable, ok, detail: ok ? `${executable} is on PATH` : absent };
 }
 
 export function recordHostConfiguration(facts: HostFacts, scope: HostScope): HostConfigurationRecord {
@@ -249,15 +254,18 @@ function permissionObservation(code: string | undefined, missingDetail: string):
   return { state: 'unreadable', detail: code ?? 'unreadable' };
 }
 
-function readApparmorRestriction(): Observation<boolean> {
-  const read = readHostText(apparmorPath);
+function readApparmorRestriction(sysctlPath: string): Observation<boolean> {
+  const read = readHostText(sysctlPath);
   if (!read.ok) {
     return permissionObservation(read.code, 'AppArmor unprivileged user-namespace restriction file is not present');
   }
   const value = read.text.trim();
-  if (value === '1') return { state: 'observed', value: true, detail: 'kernel.apparmor_restrict_unprivileged_userns=1' };
-  if (value === '0') return { state: 'observed', value: false, detail: 'kernel.apparmor_restrict_unprivileged_userns=0' };
-  return { state: 'observed', detail: `kernel.apparmor_restrict_unprivileged_userns has unexpected contents: ${truncate(value)}` };
+  const label = path.basename(sysctlPath) === 'apparmor_restrict_unprivileged_userns'
+    ? 'kernel.apparmor_restrict_unprivileged_userns'
+    : path.basename(sysctlPath);
+  if (value === '1') return { state: 'observed', value: true, detail: `${label}=1` };
+  if (value === '0') return { state: 'observed', value: false, detail: `${label}=0` };
+  return { state: 'observed', detail: `${label} has unexpected contents: ${truncate(value)}` };
 }
 
 function fuseConfEnablesUserAllowOther(text: string): boolean {
@@ -269,26 +277,18 @@ function fuseConfEnablesUserAllowOther(text: string): boolean {
   return false;
 }
 
-function readFuseUserAllowOther(): Observation<boolean> {
-  const read = readHostText(fuseConfPath);
-  if (!read.ok) return permissionObservation(read.code, '/etc/fuse.conf is not present');
+function readFuseUserAllowOther(fuseConf: string): Observation<boolean> {
+  const read = readHostText(fuseConf);
+  if (!read.ok) return permissionObservation(read.code, `${fuseConf} is not present`);
   if (fuseConfEnablesUserAllowOther(read.text)) return { state: 'observed', value: true, detail: 'user_allow_other is set' };
-  return { state: 'observed', value: false, detail: '/etc/fuse.conf does not set user_allow_other' };
+  return { state: 'observed', value: false, detail: `${fuseConf} does not set user_allow_other` };
 }
 
 /** Non-mutating probe. It never writes sysctls, AppArmor, or fuse.conf. */
-function probeSandbox(bwrapInstalled: boolean): Observation<boolean> {
-  if (!bwrapInstalled) return { state: 'unavailable', detail: 'bwrap is not on PATH' };
+function probeSandbox(executable: string, probe: readonly string[], installed: boolean): Observation<boolean> {
+  if (!installed) return { state: 'unavailable', detail: `${executable} is not on PATH` };
   try {
-    const result = spawnSync('bwrap', [
-      '--unshare-user',
-      '--unshare-net',
-      '--ro-bind', '/', '/',
-      '--dev', '/dev',
-      '--proc', '/proc',
-      '--',
-      'true',
-    ], {
+    const result = spawnSync(executable, [...probe], {
       encoding: 'utf8',
       timeout: sandboxProbeTimeoutMs,
       killSignal: 'SIGKILL',
@@ -320,11 +320,11 @@ function commandExists(name: string): boolean {
   return result.status === 0 && result.stdout.trim() !== '';
 }
 
-function sharedLibraries(): Record<string, boolean> {
+function sharedLibraries(names: readonly string[]): Record<string, boolean> {
   const listed = spawnSync('ldconfig', ['-p'], { encoding: 'utf8' });
   const text = listed.status === 0 ? listed.stdout : '';
   const libraries: Record<string, boolean> = {};
-  for (const library of DESKTOP_SHARED_LIBRARIES) {
+  for (const library of names) {
     libraries[library] = text.includes(library) || existsSync(`/lib/x86_64-linux-gnu/${library}`) || existsSync(`/usr/lib/x86_64-linux-gnu/${library}`);
   }
   return libraries;
@@ -336,36 +336,32 @@ function libcVersion(): string | undefined {
   return undefined;
 }
 
-function fuseDevicePresent(): boolean {
-  try { return statSync(fuseDevicePath).isCharacterDevice(); } catch { return false; }
+function fuseDevicePresent(device: string): boolean {
+  try { return statSync(device).isCharacterDevice(); } catch { return false; }
 }
 
-function cgroupV2Mounted(): boolean {
-  try { return existsSync(cgroupControllersPath); } catch { return false; }
+function cgroupV2Mounted(mount: string, marker: string): boolean {
+  try { return existsSync(path.join(mount, marker)); } catch { return false; }
 }
 
-/** Reads host observations. The bubblewrap probe never changes sysctls, AppArmor, or fuse.conf. */
-export function collectHostFacts(): HostFacts {
-  const bwrap = commandExists('bwrap');
+/** Reads host observations from the committed contract. The probe never changes host configuration. */
+export function collectHostFacts(contract: HostContract = committedHostContract()): HostFacts {
+  const commands: Record<string, boolean> = {};
+  for (const name of [contract.sandbox.executable, contract.agentStore.executable, ...contract.desktop.executables, ...contract.desktop.browsers]) {
+    commands[name] = commandExists(name);
+  }
+  const sandboxInstalled = commands[contract.sandbox.executable] === true;
   return {
     platform: process.platform,
     arch: process.arch,
     libc: libcVersion(),
-    commands: {
-      bwrap,
-      fusermount3: commandExists('fusermount3'),
-      xdpyinfo: commandExists('xdpyinfo'),
-      ffmpeg: commandExists('ffmpeg'),
-      ffprobe: commandExists('ffprobe'),
-      'google-chrome': commandExists('google-chrome'),
-      chromium: commandExists('chromium'),
-    },
-    fuseDevice: fuseDevicePresent(),
-    fuseUserAllowOther: readFuseUserAllowOther(),
-    cgroupV2: cgroupV2Mounted(),
-    apparmorRestrictsUserNamespaces: readApparmorRestriction(),
-    sandboxBackend: 'bubblewrap',
-    sandboxBackendViable: probeSandbox(bwrap),
-    sharedLibraries: sharedLibraries(),
+    commands,
+    fuseDevice: fuseDevicePresent(contract.agentStore.device),
+    fuseUserAllowOther: readFuseUserAllowOther(contract.agentStore.fuseConf),
+    cgroupV2: cgroupV2Mounted(contract.cgroup.mount, contract.cgroup.marker),
+    apparmorRestrictsUserNamespaces: readApparmorRestriction(contract.sandbox.apparmorSysctl),
+    sandboxBackend: contract.sandbox.backend,
+    sandboxBackendViable: probeSandbox(contract.sandbox.executable, contract.sandbox.probe, sandboxInstalled),
+    sharedLibraries: sharedLibraries(contract.desktop.sharedLibraries),
   };
 }
