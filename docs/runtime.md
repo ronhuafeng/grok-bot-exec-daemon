@@ -123,12 +123,15 @@ addons and PTY, launcher and bundled tools, HTTP and PTY authentication, sandbox
 confinement, the Agent Store mount, cgroup reporting, and shutdown. The
 capability mapping is in [verification](strict-typescript.md).
 
-`runtime-proof.json` schema 2 records the source commit and the tested commit,
+`runtime-proof.json` schema 3 records the source commit and the tested commit,
 the workflow run id and attempt, and the host scope (`prepared-runner` or
 `observed-host`) with the effective AppArmor user-namespace, FUSE
 `user_allow_other`, and bubblewrap observations. Each locked tool is `verified`,
 `absent`, or `mismatch` against the bytes this run provisioned; an optional tool
 may be absent, and a lock hash alone does not verify it. Each native check stays
-`passed`, `failed`, or `skipped`. The file is conformance evidence for that run,
+`passed`, `failed`, or `skipped`. Each declared capability is also `not-run` or
+`prerequisite-blocked` when its report was not produced. A metadata failure is
+recorded separately and does not relabel native results. The Actions run URL,
+workflow, and job are included when GitHub provides them. The file is conformance evidence for that run,
 not a provenance attestation or a security review. Provenance remains in
 [provenance](provenance.md).

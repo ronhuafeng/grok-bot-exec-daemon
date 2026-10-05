@@ -7,7 +7,7 @@ import { buildRoot, root } from './lib/project.js';
 import { parseRuntimeToolLock } from './lib/runtime-provision.js';
 import type { LockedTool } from './lib/runtime-provision.js';
 import { assertProducedToolIdentity, buildRuntimeProof, classifyTool, resolveProofHostScope } from './lib/runtime-proof.js';
-import type { CheckStatus } from './lib/runtime-proof.js';
+import type { CheckStatus, RuntimeProofReporting } from './lib/runtime-proof.js';
 
 function capture(command: string, args: string[]): string {
   const result = spawnSync(command, args, { encoding: 'utf8' });
@@ -26,12 +26,12 @@ function optionalEnv(value: string | undefined): string | null {
   return trimmed;
 }
 
-function readReport(file: string): string {
+function readReport(file: string): string | null {
   try {
     return readFileSync(file, 'utf8');
   } catch (error) {
-    if (errorCode(error) === 'ENOENT') throw new Error(`JUnit report is missing: ${file}`);
-    throw error;
+    if (errorCode(error) === 'ENOENT') return null;
+    throw new Error(`Runtime proof report is unreadable: ${file}`);
   }
 }
 
@@ -68,20 +68,37 @@ function parseReportArg(value: string): { step: string; file: string } {
 const { values } = parseArgs({
   options: {
     report: { type: 'string', multiple: true },
+    blocked: { type: 'string', multiple: true },
     output: { type: 'string', default: 'runtime-proof.json' },
   },
 });
 const reportArgs = values.report ?? [];
 if (reportArgs.length === 0) throw new Error('--report is required');
+const blocked = new Map<string, string>();
+for (const value of values.blocked ?? []) {
+  const parsed = parseReportArg(value);
+  blocked.set(parsed.step, parsed.file);
+}
 const reports = reportArgs.map(value => {
   const parsed = parseReportArg(value);
-  return { step: parsed.step, file: parsed.file, xml: readReport(parsed.file) };
+  const reason = blocked.get(parsed.step);
+  return {
+    step: parsed.step,
+    file: parsed.file,
+    xml: reason === undefined ? readReport(parsed.file) : null,
+    blockedReason: reason,
+  };
 });
 
 const lock = parseRuntimeToolLock(JSON.parse(readFileSync(path.join(root, 'runtime/tools.lock.json'), 'utf8')) as unknown);
 const selected = lock.tools.filter(tool => tool.profiles.includes('supported'));
 const classified = selected.map(tool => ({ tool, proof: classifyTool(tool, readProvisionedBytes(tool)) }));
-assertProducedToolIdentity(classified.map(item => ({ id: item.tool.id, optional: item.tool.optional, state: item.proof.state })));
+let reporting: RuntimeProofReporting = { status: 'ok', error: null };
+try {
+  assertProducedToolIdentity(classified.map(item => ({ id: item.tool.id, optional: item.tool.optional, state: item.proof.state })));
+} catch (error) {
+  reporting = { status: 'metadata-failed', error: error instanceof Error ? error.message : String(error) };
+}
 
 const testedCommit = capture('git', ['-C', root, 'rev-parse', 'HEAD']);
 const sourceEnv = process.env.RUNTIME_PROOF_SOURCE_SHA?.trim();
@@ -100,6 +117,8 @@ const proof = buildRuntimeProof({
   testedCommit,
   workflowRunId: optionalEnv(process.env.GITHUB_RUN_ID),
   workflowRunAttempt: optionalEnv(process.env.GITHUB_RUN_ATTEMPT),
+  reporting,
+  actions: actionTrace(),
   profile: 'supported',
   hostScope: scope,
   host: {
@@ -117,6 +136,20 @@ const proof = buildRuntimeProof({
   reports,
 });
 writeFileSync(path.resolve(values.output ?? 'runtime-proof.json'), `${JSON.stringify(proof, null, 2)}\n`);
-const counts: Record<CheckStatus, number> = { passed: 0, failed: 0, skipped: 0 };
-for (const check of proof.checks) counts[check.status] += 1;
-console.log(`Wrote runtime proof tested ${proof.testedCommit} source ${proof.sourceCommit}: ${counts.passed} passed, ${counts.failed} failed, ${counts.skipped} skipped.`);
+const counts: Record<CheckStatus, number> = { passed: 0, failed: 0, skipped: 0, 'not-run': 0, 'prerequisite-blocked': 0 };
+for (const capability of proof.capabilities) counts[capability.status] += 1;
+console.log(`Wrote runtime proof tested ${proof.testedCommit} source ${proof.sourceCommit}: ${counts.passed} passed, ${counts.failed} failed, ${counts.skipped} skipped, ${counts['not-run']} not-run, ${counts['prerequisite-blocked']} prerequisite-blocked. Reporting ${proof.reporting.status}.`);
+if (proof.reporting.status !== 'ok') process.exitCode = 1;
+
+function actionTrace(): { repository: string | null; workflow: string | null; job: string | null; runId: string | null; runAttempt: string | null; runUrl: string | null } {
+  const repository = optionalEnv(process.env.GITHUB_REPOSITORY);
+  const runId = optionalEnv(process.env.GITHUB_RUN_ID);
+  return {
+    repository,
+    workflow: optionalEnv(process.env.GITHUB_WORKFLOW),
+    job: optionalEnv(process.env.GITHUB_JOB),
+    runId,
+    runAttempt: optionalEnv(process.env.GITHUB_RUN_ATTEMPT),
+    runUrl: repository !== null && runId !== null ? `https://github.com/${repository}/actions/runs/${runId}` : null,
+  };
+}

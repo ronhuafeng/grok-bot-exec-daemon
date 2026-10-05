@@ -64,7 +64,9 @@ test('passing junit records passed checks for the caller step and file', () => {
     file: 'proof-reports/native-pty.junit.xml',
     xml: passingXml,
   }]));
-  assert.equal(proof.schemaVersion, 2);
+  assert.equal(proof.schemaVersion, 3);
+  assert.equal(proof.capabilities[0]?.status, 'passed');
+  assert.equal(proof.reporting.status, 'ok');
   assert.equal(proof.sourceCommit, sourceCommit);
   assert.equal(proof.testedCommit, testedCommit);
   assert.notEqual(proof.sourceCommit, proof.testedCommit);
@@ -119,6 +121,25 @@ test('an honest record keeps failed and skipped checks without requireAllPassed'
   }]));
   assert.deepEqual(proof.checks.map(check => check.status), ['passed', 'skipped', 'failed']);
   assert.deepEqual(passedChecks(proof.checks).map(check => check.status), ['passed']);
+  assert.equal(proof.capabilities[0]?.status, 'failed');
+});
+
+test('missing and blocked capabilities stay distinct from native results', () => {
+  const proof = buildRuntimeProof(identity([
+    { step: 'Native addons and PTY output', file: 'proof-reports/native-pty.junit.xml', xml: null },
+    { step: 'Sandbox filesystem and network confinement', file: 'proof-reports/sandbox.junit.xml', xml: null, blockedReason: 'host preflight failed' },
+  ]));
+  assert.deepEqual(proof.checks, []);
+  assert.deepEqual(proof.capabilities.map(item => item.status), ['not-run', 'prerequisite-blocked']);
+  assert.equal(proof.capabilities[1]?.detail, 'host preflight failed');
+  assert.deepEqual(passedChecks(proof.checks), []);
+  const traced = buildRuntimeProof(identity([{ step: 'Native addons and PTY output', file: 'a.junit.xml', xml: passingXml }], {
+    actions: { repository: 'ronhuafeng/grok-bot-exec-daemon', workflow: 'Runtime proof', job: 'proof', runId: '99', runAttempt: '1', runUrl: 'https://github.com/ronhuafeng/grok-bot-exec-daemon/actions/runs/99' },
+    reporting: { status: 'metadata-failed', error: 'tool mismatch' },
+  }));
+  assert.equal(traced.checks[0]?.status, 'passed');
+  assert.equal(traced.reporting.error, 'tool mismatch');
+  assert.equal(traced.actions.runUrl, 'https://github.com/ronhuafeng/grok-bot-exec-daemon/actions/runs/99');
 });
 
 test('runtime proof rejects incomplete commits, host identity, and empty junit', () => {

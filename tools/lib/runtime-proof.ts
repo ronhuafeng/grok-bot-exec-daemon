@@ -1,6 +1,6 @@
 import { sha256 } from './runtime-provision.js';
 
-export const RUNTIME_PROOF_SCHEMA_VERSION = 2;
+export const RUNTIME_PROOF_SCHEMA_VERSION = 3;
 
 const commitSha = /^[0-9a-f]{40}$/;
 const contentSha = /^[0-9a-f]{64}$/;
@@ -12,7 +12,8 @@ const toolStates = new Set(['verified', 'absent', 'mismatch']);
 
 export type ProofHostScope = 'observed-host' | 'prepared-runner';
 export type ToolState = 'verified' | 'absent' | 'mismatch';
-export type CheckStatus = 'passed' | 'failed' | 'skipped';
+export type CheckStatus = 'passed' | 'failed' | 'skipped' | 'not-run' | 'prerequisite-blocked';
+export type ReportingStatus = 'ok' | 'metadata-failed';
 
 export interface RuntimeProofTool {
   id: string;
@@ -28,6 +29,20 @@ export interface RuntimeProofCheck {
   step: string;
 }
 export interface RuntimeProofReport { step: string; file: string }
+export interface RuntimeProofCapability {
+  step: string;
+  status: CheckStatus;
+  detail: string;
+}
+export interface RuntimeProofReporting { status: ReportingStatus; error: string | null }
+export interface RuntimeProofActions {
+  repository: string | null;
+  workflow: string | null;
+  job: string | null;
+  runId: string | null;
+  runAttempt: string | null;
+  runUrl: string | null;
+}
 export interface RuntimeProofHost {
   os: string;
   arch: string;
@@ -39,7 +54,7 @@ export interface RuntimeProofHost {
   sandboxBackendViable: 'viable' | 'not-viable' | 'unavailable' | 'unreadable';
 }
 export interface RuntimeProof {
-  schemaVersion: 2;
+  schemaVersion: 3;
   sourceCommit: string;
   testedCommit: string;
   workflowRunId: string | null;
@@ -50,6 +65,9 @@ export interface RuntimeProof {
   node: { version: string; modules: number };
   tools: RuntimeProofTool[];
   checks: RuntimeProofCheck[];
+  capabilities: RuntimeProofCapability[];
+  reporting: RuntimeProofReporting;
+  actions: RuntimeProofActions;
   reports: RuntimeProofReport[];
 }
 
@@ -62,7 +80,8 @@ export interface ClassifiableTool {
 export interface RuntimeProofReportInput {
   step: string;
   file: string;
-  xml: string;
+  xml: string | null;
+  blockedReason?: string;
 }
 export interface RuntimeProofInput {
   sourceCommit: string;
@@ -75,6 +94,8 @@ export interface RuntimeProofInput {
   node: { version: string; modules: number };
   tools: readonly RuntimeProofTool[];
   reports: readonly RuntimeProofReportInput[];
+  reporting?: RuntimeProofReporting;
+  actions?: RuntimeProofActions;
   requireAllPassed?: boolean;
 }
 
@@ -130,12 +151,26 @@ export function buildRuntimeProof(input: RuntimeProofInput): RuntimeProof {
   if (input.reports.length === 0) throw new Error('JUnit report is missing');
   const checks: RuntimeProofCheck[] = [];
   const reports: RuntimeProofReport[] = [];
+  const capabilities: RuntimeProofCapability[] = [];
   for (const report of input.reports) {
     if (report.step.trim() === '' || report.file.trim() === '') throw new Error('JUnit report identity is incomplete');
     reports.push({ step: report.step, file: report.file });
-    checks.push(...parseJunitChecks(report.xml, report.file, report.step));
+    const blocked = report.blockedReason?.trim();
+    if (blocked !== undefined && blocked !== '') {
+      capabilities.push({ step: report.step, status: 'prerequisite-blocked', detail: blocked });
+      continue;
+    }
+    if (report.xml === null) {
+      capabilities.push({ step: report.step, status: 'not-run', detail: 'junit report was not produced' });
+      continue;
+    }
+    const parsed = parseJunitChecks(report.xml, report.file, report.step);
+    checks.push(...parsed);
+    capabilities.push({ step: report.step, status: capabilityStatus(parsed), detail: `${parsed.length} native results` });
   }
-  if (input.requireAllPassed === true && checks.some(check => check.status !== 'passed')) {
+  const reporting = input.reporting ?? { status: 'ok' as const, error: null };
+  if (reporting.status !== 'ok' && reporting.status !== 'metadata-failed') throw new Error('Runtime proof reporting status is incomplete');
+  if (input.requireAllPassed === true && (checks.some(check => check.status !== 'passed') || capabilities.some(item => item.status !== 'passed'))) {
     throw new Error('Runtime proof check did not pass');
   }
   return {
@@ -150,8 +185,24 @@ export function buildRuntimeProof(input: RuntimeProofInput): RuntimeProof {
     node: { version: input.node.version, modules: input.node.modules },
     tools: input.tools.map(tool => ({ ...tool })),
     checks,
+    capabilities,
+    reporting,
+    actions: input.actions ?? {
+      repository: null,
+      workflow: null,
+      job: null,
+      runId: input.workflowRunId,
+      runAttempt: input.workflowRunAttempt,
+      runUrl: null,
+    },
     reports,
   };
+}
+
+function capabilityStatus(checks: readonly RuntimeProofCheck[]): CheckStatus {
+  if (checks.some(check => check.status === 'failed')) return 'failed';
+  if (checks.some(check => check.status === 'skipped')) return 'skipped';
+  return 'passed';
 }
 
 function expectedToolSha256(lockEntry: ClassifiableTool): string {
