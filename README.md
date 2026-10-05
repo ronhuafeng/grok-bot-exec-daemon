@@ -1,75 +1,74 @@
 # grok-bot-exec-daemon
 
-A maintainable project layout for the installed `@anysphere/exec-daemon-runtime`
-snapshot imported in commit `89afb204a8a326803669563ff7eda622b9c348d0`.
+Strict TypeScript application modules around a pinned installed
+`@anysphere/exec-daemon-runtime` snapshot.
 
-**Status:** recovered-runtime project, not a complete upstream source release.
-The original TypeScript, source maps, upstream build configuration, native-addon
-sources, dependency lockfile, and original Node executable are absent. This
-repository does not grant an open-source license for the imported runtime.
-See [provenance and licensing](docs/provenance.md) before redistribution.
+The application uses ordinary NodeNext imports and exports. Build tools and tests
+are also strictly checked. Dependencies whose original sources are unavailable
+remain in a generated, vendor-only CommonJS capsule; application code is never
+inserted into that capsule.
 
-## Develop and verify
+This is newly reconstructed TypeScript. The original upstream TypeScript,
+source maps, build lockfile, native sources and Node executable were not supplied.
+No new license grant is made for upstream material. See [provenance](docs/provenance.md).
 
-Use Node.js 22 or 24, Bash, and Git. Project tooling has no npm dependencies and does
-not run install hooks, fetch packages, start the daemon, or load native addons.
+## Development
+
+Use Node 22.20+ or 24.3+, Bash and Git:
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
 npm run check
-npm run verify:reproduction
 ```
 
-`check` verifies every imported file, checks JavaScript and shell syntax, runs
-focused behavioral tests, builds `dist/runtime/`, and verifies the built files.
-`verify:reproduction` proves the initial recovered modules reconstruct the
-original `index.js` byte for byte. It is an explicit baseline check, not a
-permanent requirement after intentional runtime changes.
+Checks are offline after dependency installation. They use controlled fixtures,
+not a listening daemon, credentials or real native addons.
+
+| Command | Purpose |
+| --- | --- |
+| `npm run typecheck` | Strict compiler and untyped-escape audit |
+| `npm test` | Ordinary-module, behavior, differential and packaging tests |
+| `npm run verify:contracts` | Check source-derived protobuf declarations |
+| `npm run verify:snapshot` | Verify all imported bytes, paths and modes |
+| `npm run build` | Build the installed runtime directory |
+| `npm run verify:build` | Verify the complete generated artifact |
+| `npm run check` | All project checks and complete-checkout build verification |
+
+For a feature change, start with its module in `src/runtime/` and focused test.
+You do not need to understand the original bundle's lexical scope.
+See [contributing](CONTRIBUTING.md) and [architecture](docs/architecture.md).
 
 ## Layout
 
 ```text
-bin/                         Project launcher
-src/recovered/               21 editable compiled JavaScript module factories
-tools/                       Offline recovery, integrity, build and doctor tools
-tests/                       Build, launcher and selected runtime contract tests
-docs/                        Architecture, runtime prerequisites and provenance
-vendor/exec-daemon-runtime/   Byte-preserved installed snapshot, including notices
-vendor/snapshot.json         Original paths, Git blob IDs, sizes and modes
-dist/runtime/                Generated runnable-layout output (ignored)
+src/runtime/                 Application modules and CLI composition
+src/interop/vendor/          Named, typed access to retained dependency values
+src/interop/contracts/       Service, protocol and native boundary types
+src/runtime-entry.cts        Small typed CommonJS launcher bridge
+tools/                       Build, integrity and contract-generation tools
+tests/                       Module tests and isolated baseline oracles
+vendor/exec-daemon-runtime/   Immutable installed snapshot and notices
+vendor/snapshot.json         Original file hashes, sizes and modes
+dist/project/                Compiled development output (ignored)
+dist/runtime/                Installed artifact (ignored)
 ```
 
-The recovered factories keep their Webpack imports and export names. They are
-editable JavaScript, not standalone npm modules or reconstructed TypeScript.
-The build replaces only those factories in the pinned bundle and keeps chunks,
-SDK declarations, native addons, WASM, npm and other runtime assets together.
-See [architecture](docs/architecture.md) and [contributing](CONTRIBUTING.md).
+The original bundle contains 64 identifiable application source segments. The
+source inventory accounts for all of them: 63 remain in maintained modules; a
+closed, unreachable platform-only segment and associated dead declarations are
+retired with source-bound evidence. No application implementation is retained as
+a hidden fallback inside the vendor capsule.
 
-## Run
+## Runtime prerequisites
 
 ```sh
 npm run build
 npm run doctor
-# After separately provisioning the compatible runtime prerequisites:
+# Only after provisioning compatible runtime prerequisites:
 ./bin/exec-daemon --help
 ```
 
-The snapshot intentionally excludes its original `node` and several external
-tools. `doctor` is a read-only presence/platform check and is expected to fail
-until required files have been provisioned. It does not establish native ABI
-compatibility or successful server startup. The bundled native addons are
-Linux x86-64 ELF; this snapshot is not a portable macOS/Windows distribution.
-
-The launcher requires `dist/runtime/node` because imported tool discovery uses
-`process.execPath`. It does not silently fall back to a host Node installation.
-Full daemon use also requires authentication and feature-specific services.
-Read [runtime prerequisites and migration](docs/runtime.md) and
-[security](SECURITY.md) first. No daemon startup or end-to-end service behavior
-is asserted by the unit-test suite.
-
-## Publishing
-
-The root npm package remains `private: true`. There is no release or deployment
-workflow. Public distribution needs confirmed rights, complete notices, and a
-supported runtime/toolchain. This restructuring neither changes repository
-visibility nor relicenses any upstream code.
+The imported native addons target Linux x86-64. A compatible original-runtime
+Node executable and some external tools require separate provisioning. A green
+build does not establish native ABI, live RPC, browser, PTY or sandbox acceptance.
+See [runtime requirements](docs/runtime.md) and [verification limits](docs/strict-typescript.md).

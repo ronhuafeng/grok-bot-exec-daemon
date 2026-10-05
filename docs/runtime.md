@@ -22,7 +22,7 @@ arguments are preserved by the launcher.
 
 ## Node and platform
 
-Project tooling/CI uses Node 22 and 24. This does not identify the original
+Project tooling requires Node 22.20+ or 24.3+; CI checks the latest releases in both lines. This does not identify the original
 runtime Node version or native ABI. The imported package metadata does not
 record that version, and the original executable was excluded from Git.
 
@@ -64,8 +64,9 @@ on its options. Use `./bin/exec-daemon --help` and
 
 Do not start the service with real tokens or expose a port as part of a build
 test. Existing CLI flags and defaults are preserved, including the handling
-of unknown `serve` options for newer launchers. No authentication, sandbox,
-network, privacy or runtime policy is changed by the structural conversion.
+of unknown `serve` options for newer launchers. Authentication and execution policy are retained. The two documented JSON
+configuration guards reject malformed types earlier through the existing error
+paths; see [verification](strict-typescript.md).
 
 Stop a running daemon before rebuilding `dist/runtime/`. The builder preserves
 separately provisioned files there, but updates owned payload files individually;
