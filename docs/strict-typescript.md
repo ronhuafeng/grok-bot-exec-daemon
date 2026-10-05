@@ -1,5 +1,11 @@
 # Type safety and verification
 
+This document inventories concrete compiler, migration, behavior, and runtime
+evidence. The project-wide rules for interpreting that evidence are defined in
+[property-oriented verification](verification-methodology.md): properties are
+the subject of verification, while tests and workflows are maintained proof
+harnesses rather than truth authorities.
+
 ## Compiler coverage
 
 The NodeNext configuration includes every maintained TypeScript application,
