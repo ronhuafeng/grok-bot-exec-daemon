@@ -68,14 +68,29 @@ branches are retained; injected platform fixtures do not establish host support.
 
 ## Limits
 
-`npm run check` requires a complete checkout. Node 22 and 24 CI verify the full
-payload, strict compile/audit, generated contracts, tests and installed build.
-A partial local checkout can run bounded module tests but cannot certify the
-complete artifact; report that limitation explicitly.
+`npm run check` requires a complete checkout. Node 22 and 24 project checks
+compile TypeScript, check strict types and module boundaries, check generated
+protocol contracts, verify the pinned snapshot, check syntax, prepare the test
+capsule, test offline runtime contracts, build the installed runtime, and verify
+that artifact as separate steps. A partial local checkout can run bounded module
+tests but cannot certify the complete artifact; report that limitation explicitly.
 
-Offline checks do not by themselves prove a listening daemon. After
-`npm run provision`, `npm run test:live` proves Node 22.14.0 native-addon loading,
-PTY output, ripgrep `--cursor-ignore`, `serve` HTTP Ping authentication, PTY
-WebSocket authentication and spawn, sandbox write denial, Origin, tmux 3.5a, and
-a `fuse.agent-store` mount. It does not prove browser, computer-use, or cgroup
-behavior. See [runtime prerequisites](runtime.md).
+Offline checks do not by themselves prove a listening daemon. After the runtime
+is provisioned, Runtime proof calls `node --test` on the live files below.
+cgroup `GetResourceUsage` is covered by `tests/live/cgroup-runtime.test.ts`.
+Browser and computer-use remain unproven. The Agent Store proof uses the mock
+helper; it is not production storage proof. See [runtime prerequisites](runtime.md).
+
+| Profile / capability | Behavior | Test file | Workflow step |
+| --- | --- | --- | --- |
+| supported / native addons | Provisioned Node 22.14.0 loads the pinned native addons | `tests/live/native-runtime.test.ts` | Native addons and PTY output |
+| supported / PTY | The pinned pty addon opens a real process | `tests/live/pty-runtime.test.ts` | Native addons and PTY output |
+| supported / launcher | The project launcher prints help with the provisioned Node | `tests/live/daemon-runtime.test.ts` | Launcher and bundled tool behavior |
+| supported / bundled tools | Origin, tmux 3.5a, and the mock agent-store helper run from the provisioned tree | `tests/live/bundled-tools.test.ts` | Launcher and bundled tool behavior |
+| supported / ripgrep | Provisioned ripgrep accepts `--cursor-ignore` | `tests/live/ripgrep-runtime.test.ts` | Launcher and bundled tool behavior |
+| supported / HTTP and PTY auth | `serve` authenticates HTTP Ping and PTY WebSocket spawn, and a missing PTY token leaves that listener closed | `tests/live/server-runtime.test.ts`, `tests/live/pty-auth-runtime.test.ts` | HTTP and PTY authentication |
+| supported / Agent Store cleanup and liveness | Unmount failures fall through, and a hung FUSE probe kills only the matching pid | `tests/fuse-cleanup.test.ts`, `tests/fuse-liveness-recovery.test.ts` | Test offline runtime contracts |
+| supported / sandbox | A workspace write is allowed; an outside write and a local network connection are denied | `tests/live/sandbox-runtime.test.ts` | Sandbox filesystem and network confinement |
+| supported / Agent Store | The mount reports `fuse.agent-store` through the mock helper | `tests/live/agent-store-runtime.test.ts` | Agent Store FUSE mount |
+| supported / cgroup | `GetResourceUsage` reports the cgroup v2 limits | `tests/live/cgroup-runtime.test.ts` | Cgroup resource reporting |
+| supported / shutdown | Graceful shutdown releases listeners and daemon-owned children | `tests/live/shutdown-runtime.test.ts` | Shutdown and restart lifecycle |

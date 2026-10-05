@@ -84,10 +84,19 @@ it is a developer build tool, not a live-upgrade/deployment mechanism.
 ## Host preflight
 
 `npm run preflight -- --profile supported` checks the Linux host before startup.
-It reports architecture, glibc, `bwrap`, unprivileged user namespaces, `/dev/fuse`,
-`user_allow_other`, `fusermount3`, and cgroup v2. It does not change sysctls or
-FUSE configuration. The runtime-proof workflow prepares a GitHub-hosted runner
-and then runs this same check. Core-only hosts can use `--profile core`.
+It reports architecture, glibc, `bwrap`, a read-only bubblewrap user-namespace
+probe, the AppArmor unprivileged user-namespace sysctl when that file is
+readable, `/dev/fuse`, `user_allow_other`, `fusermount3`, and cgroup v2. A
+missing AppArmor file does not by itself prove that user namespaces work, and
+an unreadable sysctl fails the check. The namespace check passes only when the
+bubblewrap probe succeeds and AppArmor is not actively restricting namespaces.
+`kernel.apparmor_restrict_unprivileged_userns=0` is one valid observation, not
+the only supported deployment. The command does not change sysctls or FUSE
+configuration. `--scope prepared-runner` records that the caller already
+changed the host; the default scope is `observed-host`. Scope does not change
+pass or fail. The runtime-proof workflow prepares a GitHub-hosted runner and
+then runs this same check with `--scope prepared-runner`. Core-only hosts can
+use `--profile core`.
 
 ## Writable state
 
@@ -101,9 +110,23 @@ is set. The PTY listener uses that host unless `--pty-bind-host` or
 `EXEC_DAEMON_PTY_BIND_HOST` overrides it. Recommended production supplies
 `EXEC_DAEMON_AUTH_TOKEN` and `EXEC_DAEMON_PTY_AUTH_TOKEN`, or the matching
 `*_FILE` paths, instead of putting secrets in argv. CLI values still win when
-present. TLS for a public listener belongs to the surrounding deployment.
+present. A missing or empty PTY token disables the PTY listener. An HTTP token
+alone does not open an unauthenticated PTY socket.
+`--allow-unauthenticated-pty` is an explicit compatibility mode and starts that
+listener only on a loopback bind host (`127.0.0.1`, `::1`, or `localhost`).
+TLS for a public listener belongs to the surrounding deployment.
 
-A successful Runtime proof writes `runtime-proof.json`. That file records the
-tested commit, host, Node ABI, locked tool hashes, and passed live checks. It is
-conformance evidence for that run, not a provenance attestation or a security
-review. Provenance remains in [provenance](provenance.md).
+Runtime proof calls `node --test` directly in semantic workflow steps: native
+addons and PTY, launcher and bundled tools, HTTP and PTY authentication, sandbox
+confinement, the Agent Store mount, cgroup reporting, and shutdown. The
+capability mapping is in [verification](strict-typescript.md).
+
+`runtime-proof.json` schema 2 records the source commit and the tested commit,
+the workflow run id and attempt, and the host scope (`prepared-runner` or
+`observed-host`) with the effective AppArmor user-namespace, FUSE
+`user_allow_other`, and bubblewrap observations. Each locked tool is `verified`,
+`absent`, or `mismatch` against the bytes this run provisioned; an optional tool
+may be absent, and a lock hash alone does not verify it. Each native check stays
+`passed`, `failed`, or `skipped`. The file is conformance evidence for that run,
+not a provenance attestation or a security review. Provenance remains in
+[provenance](provenance.md).
