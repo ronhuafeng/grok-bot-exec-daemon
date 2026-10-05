@@ -6,7 +6,6 @@ import { mkdir, mkdtemp, readFile, readdir, rename, rm, stat, unlink, writeFile 
 import os from 'node:os';
 import path from 'node:path';
 import { buildRoot, root } from '../../tools/lib/project.js';
-import { createAgentStoreSkillsMountLatch } from '../../src/runtime/agent-store-skills.js';
 import { combineAssertionAndCleanup, unmountFuse, type CommandRunner } from '../lib/fuse-mount-cleanup.js';
 
 const contract = JSON.parse(await readFile(path.join(root, 'runtime/contract.json'), 'utf8')) as {
@@ -172,13 +171,23 @@ async function proveCreatedAgentStoreMount(mountPath: string): Promise<'read-wri
     if (readySeen || fstype === 'fuse.agent-store') createdMount = true;
     assert.equal(fstype, 'fuse.agent-store', Buffer.concat(logs).toString('utf8'));
     outcome = await exerciseMockFilesystem(mountPath);
-    const reloaded: string[][] = [];
-    const latch = createAgentStoreSkillsMountLatch({
-      roots: [mountPath],
-      reloadRoots(roots) { reloaded.push(roots); },
-    });
-    await latch();
-    assert.deepEqual(reloaded, [[mountPath]]);
+    const latchScript = path.join(scratch, 'skill-latch.mjs');
+    const latchModule = path.join(buildRoot, 'app/runtime/agent-store-skills.js');
+    await writeFile(latchScript, [
+      `import { createAgentStoreSkillsMountLatch } from ${JSON.stringify(latchModule)};`,
+      'const root = process.argv[2];',
+      'const reloaded = [];',
+      'const latch = createAgentStoreSkillsMountLatch({ roots: [root], reloadRoots(roots) { reloaded.push(roots); } });',
+      'await latch();',
+      'if (JSON.stringify(reloaded) !== JSON.stringify([[root]])) {',
+      '  console.error(JSON.stringify(reloaded));',
+      '  process.exit(1);',
+      '}',
+      'console.log("reloaded");',
+    ].join('\n'));
+    const reloaded = await run(process.execPath, [latchScript, mountPath]);
+    assert.equal(reloaded.status, 0, `${reloaded.stderr}\n${reloaded.stdout}`);
+    assert.match(reloaded.stdout, /reloaded/);
   } catch (error) {
     assertionError = error;
   } finally {
