@@ -61,7 +61,7 @@ document.getElementById('go').addEventListener('click', () => { void report('cli
 </script></body></html>`;
 }
 
-async function chromeWindow(display: string): Promise<{ x: number; y: number; width: number; height: number }> {
+async function chromeWindow(display: string): Promise<{ x: number; y: number; width: number; height: number } | undefined> {
   const listed = await run('xwininfo', ['-root', '-tree', '-display', display]);
   const windows = [...listed.stdout.matchAll(/([0-9]+)x([0-9]+)\+([0-9]+)\+([0-9]+)/g)].map(match => ({
     width: Number(match[1]),
@@ -70,9 +70,7 @@ async function chromeWindow(display: string): Promise<{ x: number; y: number; wi
     y: Number(match[4]),
   })).filter(item => item.width >= 200 && item.height >= 200);
   const nested = windows.filter(item => !(item.width === 1280 && item.height === 800 && item.x === 0 && item.y === 0));
-  const window = (nested.length > 0 ? nested : windows).sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
-  if (window === undefined) throw new Error(`desktop prerequisite failed: Chrome window was not mapped\n${listed.stdout}`);
-  return window;
+  return (nested.length > 0 ? nested : windows).sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
 }
 
 async function waitFor(label: string, check: () => Promise<boolean>): Promise<void> {
@@ -124,12 +122,15 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
   const display = `:${90 + (process.pid % 20)}`;
   const xvfb = spawn('Xvfb', [display, '-screen', '0', '1280x800x24', '-ac', '-nolisten', 'tcp'], { stdio: 'ignore' });
   const windowManager = spawn('xfwm4', ['--replace'], { env: { ...process.env, DISPLAY: display }, stdio: 'ignore' });
+  const chromeLogs: Buffer[] = [];
   const chrome = spawn(browser, [
     '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check',
-    '--disable-gpu', '--disable-component-update', '--disable-background-networking', '--disable-sync',
+    '--ozone-platform=x11', '--disable-gpu', '--disable-component-update', '--disable-background-networking', '--disable-sync',
     '--kiosk', `--user-data-dir=${chromeData}`, '--disable-extensions',
     `http://127.0.0.1:${pagePort}/`,
-  ], { env: { ...process.env, DISPLAY: display }, stdio: 'ignore' });
+  ], { env: { ...process.env, DISPLAY: display }, stdio: ['ignore', 'pipe', 'pipe'] });
+  chrome.stdout?.on('data', (chunk: Buffer) => chromeLogs.push(chunk));
+  chrome.stderr?.on('data', (chunk: Buffer) => chromeLogs.push(chunk));
   const httpPort = await freePort();
   const ptyPort = await freePort();
   const token = 'desktop-http-token';
@@ -161,7 +162,19 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
       await delay(200);
     }
     assert.equal(ready, true, Buffer.concat(logs).toString('utf8').slice(-2000));
-    const window = await chromeWindow(display);
+    let window: { x: number; y: number; width: number; height: number } | undefined;
+    const mappedDeadline = Date.now() + 20000;
+    while (Date.now() < mappedDeadline) {
+      if (chrome.exitCode !== null) {
+        throw new Error(`desktop fixture prerequisite: Chrome exited ${chrome.exitCode} before mapping a window\n${Buffer.concat(chromeLogs).toString('utf8').slice(-2000)}`);
+      }
+      window = await chromeWindow(display);
+      if (window !== undefined) break;
+      await delay(200);
+    }
+    if (window === undefined) {
+      throw new Error(`desktop fixture prerequisite: Chrome window was not mapped\n${Buffer.concat(chromeLogs).toString('utf8').slice(-2000)}`);
+    }
     const inputPoint = { x: window.x + Math.round(window.width / 2), y: window.y + Math.round(window.height / 4) };
     const buttonPoint = { x: window.x + Math.round(window.width / 2), y: window.y + Math.round(window.height * 3 / 4) };
     const screenshot = await computerUse(httpPort, token, [{ screenshot: {} }], 'shot');
