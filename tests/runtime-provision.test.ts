@@ -186,7 +186,7 @@ test('archive installation checks the archive hash and extracts one member', asy
 });
 
 test('the lock parser rejects a tampered tool', () => {
-  assert.throws(() => parseRuntimeToolLock({ schemaVersion: 1, sourceBuildTimestamp: 'time', defaultEnvironment: '/exec-daemon', tools: [] }), /Expected runtime tools/);
+  assert.throws(() => parseRuntimeToolLock({ schemaVersion: 1, sourceBuildTimestamp: 'time', defaultEnvironment: '/exec-daemon', tools: [] }), /Expected entries: tools/);
   assert.throws(() => parseRuntimeToolLock({
     schemaVersion: 1,
     sourceBuildTimestamp: 'time',
@@ -195,5 +195,5 @@ test('the lock parser rejects a tampered tool', () => {
       kind: 'file', id: '../node', dest: 'node', version: '1', sha256: 'a'.repeat(64), size: 1, mode: '100755',
       profiles: ['core'], optional: false, executableCheck: 'none', sources: [{ kind: 'repo', path: 'node' }],
     }],
-  }), /Unsafe relative path/);
+  }), /Unsafe tool id/);
 });

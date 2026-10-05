@@ -140,6 +140,7 @@ function parseTool(value: unknown, index: number): LockedTool {
   const tool = requireRecord(value, `tools[${index}]`);
   const kind = requireString(tool.kind, `tools[${index}].kind`);
   const id = requireString(tool.id, `tools[${index}].id`);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)) throw new Error(`Unsafe tool id: ${id}`);
   const base = {
     id,
     dest: validateRelativePath(tool.dest),
