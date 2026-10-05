@@ -144,8 +144,8 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
     await delay(1000);
     daemon = spawn(path.join(root, 'bin/exec-daemon'), [
       'serve', '--port', String(httpPort), '--pty-websocket-port', String(ptyPort), '--bind-host', '127.0.0.1',
-      '--rg-path', path.join(buildRoot, 'rg'), '--project-dir', workspace, '--log-level', 'error',
-      '--computer-use-enabled', '--record-screen-enabled', '--chrome-executable-path', browser,
+      '--rg-path', path.join(buildRoot, 'rg'), '--project-dir', workspace, '--log-level', 'info',
+      '--computer-use-enabled', '--computer-use-lazy-init', '--record-screen-enabled', '--chrome-executable-path', browser,
     ], {
       cwd: workspace,
       env: { ...displayEnv, HOME: directory, CURSOR_EXEC_DAEMON_DATA_DIR: data, EXEC_DAEMON_AUTH_TOKEN: token, EXEC_DAEMON_PTY_AUTH_TOKEN: ptyToken },
@@ -164,7 +164,9 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
       if (response?.status === 200) { ready = true; break; }
       await delay(200);
     }
-    assert.equal(ready, true, Buffer.concat(logs).toString('utf8').slice(-2000));
+    const daemonLog = () => Buffer.concat(logs).toString('utf8').slice(-4000);
+    assert.equal(ready, true, daemonLog());
+    assert.match(daemonLog(), /computerUseRunning":true|registered_lazy|"outcome":"ready"/, `desktop prerequisite failed: computer-use executor was not registered\n${daemonLog()}`);
     let window: { x: number; y: number; width: number; height: number } | undefined;
     const mappedDeadline = Date.now() + 20000;
     while (Date.now() < mappedDeadline) {

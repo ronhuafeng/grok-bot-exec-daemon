@@ -31,7 +31,7 @@ jobs:
       - name: Install X11, ffmpeg, and non-headless Chrome
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends xvfb x11-utils xdotool xfwm4 ffmpeg ca-certificates curl
+          sudo apt-get install -y --no-install-recommends xvfb x11-utils x11-xserver-utils xdotool xfwm4 ffmpeg ca-certificates curl
           curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/chrome.deb
           sudo apt-get install -y /tmp/chrome.deb
       - name: Install project metadata without lifecycle hooks

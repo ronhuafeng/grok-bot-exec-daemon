@@ -9,9 +9,10 @@ display or a missing recording library.
 The acceptance test starts an isolated Xvfb display and a normal Chrome window
 on it. Chrome is not started with `--headless`. `xfwm4` is a proof-fixture
 prerequisite so the window receives keyboard focus. It is not a runtime host
-requirement and is not listed in `runtime/contract.json`. `xdotool` is a runtime
-requirement because computer-use actions invoke it, so the desktop preflight
-checks it. The daemon is then started with `--computer-use-enabled` and
+requirement and is not listed in `runtime/contract.json`. `xdotool` and `xrandr` are runtime requirements: computer-use actions invoke
+`xdotool`, and display setup reads the framebuffer through `xrandr`. The desktop
+preflight checks both. `x11-utils` supplies `xdpyinfo`; `x11-xserver-utils`
+supplies `xrandr`. The daemon is then started with `--computer-use-enabled` and
 `--record-screen-enabled`. The test records the browser executable and version,
 serves one local page, asks the daemon to click and type, and checks that the
 page observed those events. It also saves a recording and checks the file with

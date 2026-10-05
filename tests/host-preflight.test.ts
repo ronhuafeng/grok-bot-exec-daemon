@@ -329,7 +329,7 @@ test('preflight records scope and does not change host configuration', { timeout
 
 test('desktop preflight names missing browser, display, and recording prerequisites separately', () => {
   const readyDesktop = withFacts({
-    commands: { xdpyinfo: true, ffmpeg: true, ffprobe: true, xdotool: true, 'google-chrome': true },
+    commands: { xdpyinfo: true, xrandr: true, ffmpeg: true, ffprobe: true, xdotool: true, 'google-chrome': true },
   });
   assert.equal(evaluateHost(readyDesktop, 'desktop').some(check => !check.ok), false);
   assert.equal(evaluateHost(readyDesktop, 'supported').some(check => check.id === 'browser'), false);

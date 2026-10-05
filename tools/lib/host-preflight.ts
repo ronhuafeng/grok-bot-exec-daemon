@@ -190,9 +190,11 @@ function desktopCommandCheck(facts: HostFacts, executable: string): HostCheck {
     ? 'xdpyinfo is not on PATH; X11 computer-use cannot start'
     : executable === 'ffmpeg'
       ? 'ffmpeg is not on PATH; screen recording cannot start'
-      : executable === 'ffprobe'
+        : executable === 'ffprobe'
         ? 'ffprobe is not on PATH; recording metadata cannot be checked'
-        : `${executable} is not on PATH`;
+        : executable === 'xrandr'
+          ? 'xrandr is not on PATH; display resolution cannot be detected'
+          : `${executable} is not on PATH`;
   return { id: executable, ok, detail: ok ? `${executable} is on PATH` : absent };
 }
 

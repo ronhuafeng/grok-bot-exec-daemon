@@ -51,7 +51,7 @@
     },
     "cgroup": { "version": 2, "mount": "/sys/fs/cgroup", "marker": "cgroup.controllers" },
     "desktop": {
-      "executables": ["xdpyinfo", "ffmpeg", "ffprobe", "xdotool"],
+      "executables": ["xdpyinfo", "xrandr", "ffmpeg", "ffprobe", "xdotool"],
       "browsers": ["google-chrome", "chromium"],
       "sharedLibraries": ["libfreetype.so.6", "libavcodec.so.60", "libavdevice.so.60", "libavformat.so.60", "libavutil.so.58", "libswscale.so.7"]
     },
