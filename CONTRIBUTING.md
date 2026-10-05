@@ -4,6 +4,25 @@ Start with [architecture](docs/architecture.md) and [provenance](docs/provenance
 This is a reconstructed application with retained upstream dependencies; source
 organization does not establish redistribution rights.
 
+## Verification and acceptance
+
+Use [property-oriented verification](docs/verification-methodology.md) when
+designing tests and reviewing acceptance evidence.
+
+- State the project property or outcome before choosing a test or workflow.
+- Treat CI, local fixtures and test runners as proof harnesses. Diagnose a red
+  harness at the layer that failed before inferring anything about the property.
+- Prefer direct observable witnesses. A generic nonzero exit is not evidence for
+  a negative property when setup failure could produce the same result.
+- Report property status, evidence strength and automation status separately when
+  they differ.
+- A green workflow is not sufficient to close an issue unless it actually
+  observes the issue's acceptance property. A broken workflow also does not erase
+  stronger direct evidence already obtained unless automated reproducibility is
+  itself part of the issue contract.
+- Record revision, environment, commands, outcomes and known limits for manual or
+  local acceptance evidence so reviewers can audit the claim.
+
 ## Small change workflow
 
 1. Use Node 22.20+ or 24.3+, Bash and Git. Install with
