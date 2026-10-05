@@ -33,7 +33,13 @@ jobs:
       - name: Install project metadata without lifecycle hooks
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prepare an agent-store mount point
-        run: sudo mkdir -p /cursor/stores && sudo chown "$(id -u):$(id -g)" /cursor /cursor/stores
+        run: |
+          sudo mkdir -p /cursor/stores
+          sudo chown "$(id -u):$(id -g)" /cursor /cursor/stores
+          grep -qx 'user_allow_other' /etc/fuse.conf 2>/dev/null || echo user_allow_other | sudo tee -a /etc/fuse.conf >/dev/null
+          if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
       - name: Build the installed runtime
         run: npm run build
       - name: Provision locked runtime tools
