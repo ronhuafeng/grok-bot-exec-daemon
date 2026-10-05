@@ -7,6 +7,17 @@ does not install bubblewrap, FUSE, or a desktop. It does install the shared
 libraries required to load the bundled native addons, including
 `polished-renderer.node`.
 
+The reproducibility claim is **input reproducibility**, not bit-for-bit OCI
+image identity. Docker layer timestamps and image config metadata are not
+pinned. These inputs are pinned:
+
+- the Ubuntu 24.04 base image digest in `deploy/Dockerfile`;
+- the tooling Node 22.20.0 archive checksum, verified before extraction;
+- the Ubuntu snapshot `20261001T000000Z` and the explicit package versions in
+  that Dockerfile. `ca-certificates` is installed from the base image archive
+  first so the snapshot can be fetched over HTTPS; every later package comes
+  from the snapshot.
+
 ```sh
 docker build -f deploy/Dockerfile -t exec-daemon-core:local .
 docker run --read-only \
