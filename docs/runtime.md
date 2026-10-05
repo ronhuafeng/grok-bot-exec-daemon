@@ -55,10 +55,13 @@ expects `tmux-root/bin/tmux`, libraries under `tmux-root/lib`, and terminfo unde
 
 `npm run doctor` checks platform and built-file presence only. It does not invoke
 Node from the runtime, native addons, the server, subprocess tools, network
-services or authentication. `npm run test:live` is the separate acceptance run:
-it loads the native addons, opens a PTY, checks `--cursor-ignore`, prints CLI
-help, and exercises `cursorsandbox` write denial. A fresh clone reports the
-runtime Node as missing until `npm run provision`.
+services or authentication. `npm run test:live` is the separate acceptance run.
+It loads the native addons, reads PTY output, checks `--cursor-ignore`, starts
+`serve`, checks HTTP Ping and PTY WebSocket authentication, exercises
+`cursorsandbox` write denial, and checks Origin, tmux, and a `fuse.agent-store`
+mount. Runners without Landlock's network namespace need `bubblewrap` for that
+sandbox check. A fresh clone reports the runtime Node as missing until
+`npm run provision`, and a checkout without Git LFS objects fails the hash check.
 
 ## CLI and safety
 

@@ -16,7 +16,7 @@ required. The other tools are copied only when an observed environment, by defau
 | `origin` | Git LFS: `runtime-tools/origin/` |
 | `cursor-agent-store-fuse` | Git LFS: `runtime-tools/agent-store/` |
 | `tmux-root` | Git LFS archive `runtime-tools/tmux-root/linux-x64/tmux-root.tar`, extracted on provision |
-| `gh`, `ssh-keygen` | Environment copy when the lock hash matches |
+| `gh`, `ssh-keygen` | Optional. Copied only when the observed environment matches the lock |
 
 `node` is larger than GitHub's 100 MB file limit, so it is downloaded rather than
 stored. `origin` is also over that limit and is stored with Git LFS, as are the
@@ -33,5 +33,5 @@ npm run test:live
 
 `npm run provision -- --profile core` installs Node and ripgrep only.
 The default `--profile supported` also installs `cursorsandbox`, `origin`,
-`cursor-agent-store-fuse`, `tmux-root`, and any optional environment tools whose
-hashes match.
+`cursor-agent-store-fuse`, and `tmux-root`. `gh` and `ssh-keygen` are optional
+in that profile: they are copied when present and skipped when absent.

@@ -73,7 +73,9 @@ payload, strict compile/audit, generated contracts, tests and installed build.
 A partial local checkout can run bounded module tests but cannot certify the
 complete artifact; report that limitation explicitly.
 
-Offline checks do not prove native ABI, live RPC/service compatibility, browser
-or PTY operations, authentication, sandbox enforcement or successful daemon
-startup. `npm run test:live` is that acceptance run after `npm run provision`.
-See [runtime prerequisites](runtime.md).
+Offline checks do not by themselves prove a listening daemon. After
+`npm run provision`, `npm run test:live` proves Node 22.14.0 native-addon loading,
+PTY output, ripgrep `--cursor-ignore`, `serve` HTTP Ping authentication, PTY
+WebSocket authentication and spawn, sandbox write denial, Origin, tmux 3.5a, and
+a `fuse.agent-store` mount. It does not prove browser, computer-use, or cgroup
+behavior. See [runtime prerequisites](runtime.md).

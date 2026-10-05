@@ -8,10 +8,22 @@ test('the pinned pty addon opens a real process', async () => {
   const node = path.join(buildRoot, 'node');
   const addon = path.join(root, 'vendor/exec-daemon-runtime/pty.node');
   const script = `
+    const fs = require('fs');
     const pty = require(${JSON.stringify(addon)});
-    pty.fork('/bin/echo', ['pty-ok'], ['PATH=/usr/bin:/bin'], '/tmp', 80, 24, -1, -1, true, 'spawn-helper-unused', (code, signal) => {
-      if (code !== 0 || signal !== 0) {
-        console.error('exit ' + code + ' ' + signal);
+    const term = pty.fork('/bin/echo', ['pty-ok'], ['PATH=/usr/bin:/bin'], '/tmp', 80, 24, -1, -1, true, 'spawn-helper-unused', (code, signal) => {
+      let output = '';
+      const buffer = Buffer.alloc(4096);
+      try {
+        while (true) {
+          const count = fs.readSync(term.fd, buffer, 0, buffer.length);
+          if (count <= 0) break;
+          output += buffer.subarray(0, count).toString('utf8');
+        }
+      } catch (error) {
+        if (!error || (error.code !== 'EAGAIN' && error.code !== 'EIO')) throw error;
+      }
+      if (code !== 0 || signal !== 0 || !output.includes('pty-ok')) {
+        console.error(JSON.stringify({ code, signal, output }));
         process.exit(1);
       }
       process.exit(0);

@@ -12,8 +12,14 @@
     "distribution": "https://nodejs.org/dist/v22.14.0/node-v22.14.0-linux-x64.tar.xz"
   },
   "profiles": {
-    "core": ["node", "rg"],
-    "supported": ["node", "rg", "cursorsandbox", "gh", "ssh-keygen", "origin", "cursor-agent-store-fuse", "tmux-root"]
+    "core": {
+      "required": ["node", "rg"],
+      "optional": []
+    },
+    "supported": {
+      "required": ["node", "rg", "cursorsandbox", "origin", "cursor-agent-store-fuse", "tmux-root"],
+      "optional": ["gh", "ssh-keygen"]
+    }
   },
   "snapshot": {
     "baselineBuildTimestamp": "2026-10-01T21:30:36.601Z",

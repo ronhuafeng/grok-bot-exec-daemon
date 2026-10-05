@@ -42,11 +42,20 @@ function fileTool(overrides: Partial<Omit<LockedFile, 'kind'>> = {}): RuntimeToo
 
 test('the committed runtime tools match the lock and contract', async () => {
   const lock = parseRuntimeToolLock(JSON.parse(await readFile(lockPath, 'utf8')) as unknown);
-  const contract = JSON.parse(await readFile(contractPath, 'utf8')) as { node: { version: string; binarySha256: string } };
+  const contract = JSON.parse(await readFile(contractPath, 'utf8')) as {
+    node: { version: string; binarySha256: string };
+    profiles: { supported: { required: string[]; optional: string[] } };
+  };
   const node = lock.tools.find(tool => tool.id === 'node');
   assert.ok(node && node.kind === 'file');
   assert.equal(node.version, contract.node.version);
   assert.equal(node.sha256, contract.node.binarySha256);
+  assert.deepEqual(contract.profiles.supported.optional, ['gh', 'ssh-keygen']);
+  for (const tool of lock.tools) {
+    if (!tool.profiles.includes('supported')) continue;
+    const listed = tool.optional ? contract.profiles.supported.optional : contract.profiles.supported.required;
+    assert.ok(listed.includes(tool.id), tool.id);
+  }
   for (const tool of lock.tools) {
     if (tool.kind !== 'file') continue;
     const repo = tool.sources.find(source => source.kind === 'repo');

@@ -15,7 +15,7 @@ concurrency:
 jobs:
   proof:
     name: Linux x64 runtime
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - name: Check out exact revision
@@ -29,9 +29,11 @@ jobs:
           node-version: 22
           package-manager-cache: false
       - name: Install native addon libraries and archive tools
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg xz-utils
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap ffmpeg fuse3 xz-utils
       - name: Install project metadata without lifecycle hooks
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prepare an agent-store mount point
+        run: sudo mkdir -p /cursor/stores && sudo chown "$(id -u):$(id -g)" /cursor /cursor/stores
       - name: Build the installed runtime
         run: npm run build
       - name: Provision locked runtime tools
