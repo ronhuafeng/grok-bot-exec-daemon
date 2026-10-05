@@ -47,6 +47,18 @@
     "scopeNote": "Preflight records observed-host unless the caller passes --scope prepared-runner. It never changes sysctls, AppArmor, or fuse.conf."
   },
   "desktop": {
-    "sharedLibraries": ["libfreetype.so.6", "libavcodec.so.60", "libavformat.so.60", "libavutil.so.58", "libswscale.so.7"]
+    "display": "x11",
+    "browser": ["google-chrome", "chromium"],
+    "browserMode": "non-headless",
+    "executables": ["xdpyinfo", "ffmpeg", "ffprobe"],
+    "sharedLibraries": ["libfreetype.so.6", "libavcodec.so.60", "libavdevice.so.60", "libavformat.so.60", "libavutil.so.58", "libswscale.so.7"]
+  },
+  "container": {
+    "profile": "core",
+    "user": "exec",
+    "uid": 1010,
+    "readOnlyRoot": true,
+    "writableMounts": ["/data", "/workspace", "/tmp", "/home/exec"],
+    "secretEnv": ["EXEC_DAEMON_AUTH_TOKEN", "EXEC_DAEMON_PTY_AUTH_TOKEN"]
   }
 }

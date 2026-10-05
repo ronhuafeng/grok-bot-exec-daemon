@@ -78,8 +78,12 @@ tests but cannot certify the complete artifact; report that limitation explicitl
 Offline checks do not by themselves prove a listening daemon. After the runtime
 is provisioned, Runtime proof calls `node --test` on the live files below.
 cgroup `GetResourceUsage` is covered by `tests/live/cgroup-runtime.test.ts`.
-Browser and computer-use remain unproven. The Agent Store proof uses the mock
-helper; it is not production storage proof. See [runtime prerequisites](runtime.md).
+Browser computer-use and recording are covered by
+`tests/desktop/desktop-runtime.test.ts` on a non-headless Chrome window. The
+core container is covered by `tests/container/core-image.test.ts`. The Agent
+Store proof uses the mock helper; it is not production storage proof. See
+[runtime prerequisites](runtime.md), [container](container.md), and
+[desktop](desktop.md).
 
 | Profile / capability | Behavior | Test file | Workflow step |
 | --- | --- | --- | --- |
@@ -94,3 +98,5 @@ helper; it is not production storage proof. See [runtime prerequisites](runtime.
 | supported / Agent Store | The mount reports `fuse.agent-store` through the mock helper | `tests/live/agent-store-runtime.test.ts` | Agent Store FUSE mount |
 | supported / cgroup | `GetResourceUsage` reports the cgroup v2 limits | `tests/live/cgroup-runtime.test.ts` | Cgroup resource reporting |
 | supported / shutdown | Graceful shutdown releases listeners and daemon-owned children | `tests/live/shutdown-runtime.test.ts` | Shutdown and restart lifecycle |
+| core container | Read-only image serves authenticated HTTP Ping, PTY spawn, and native addons | `tests/container/core-image.test.ts` | Container proof |
+| desktop | Non-headless Chrome receives pointer and keyboard input, and recording is playable | `tests/desktop/desktop-runtime.test.ts` | Desktop proof |

@@ -96,7 +96,9 @@ configuration. `--scope prepared-runner` records that the caller already
 changed the host; the default scope is `observed-host`. Scope does not change
 pass or fail. The runtime-proof workflow prepares a GitHub-hosted runner and
 then runs this same check with `--scope prepared-runner`. Core-only hosts can
-use `--profile core`.
+use `--profile core`. `--profile desktop` checks X11, Chrome or Chromium,
+ffmpeg, and the polished-renderer libraries. It is separate from `supported`.
+See [desktop](desktop.md) and [container](container.md).
 
 ## Writable state
 
