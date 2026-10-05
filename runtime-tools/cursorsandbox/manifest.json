@@ -1,0 +1,11 @@
+{
+  "name": "cursorsandbox",
+  "version": "sandbox-helper",
+  "platform": "linux-x64",
+  "sha256": "62e854f33837c53f6fa52e09deca5e3e8d56307eb876e48a7bac6e7e07aa4cc7",
+  "size": 4777184,
+  "mode": "100755",
+  "path": "linux-x64/cursorsandbox",
+  "observedIn": "exec-daemon build 2026-10-04T20:39:01.722Z",
+  "buildId": "1ed8384a7b1c75c4d92047161606df53dc06ac5b"
+}

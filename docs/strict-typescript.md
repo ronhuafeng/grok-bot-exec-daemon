@@ -75,5 +75,5 @@ complete artifact; report that limitation explicitly.
 
 Offline checks do not prove native ABI, live RPC/service compatibility, browser
 or PTY operations, authentication, sandbox enforcement or successful daemon
-startup. A live acceptance run requires compatible runtime prerequisites and
-separate explicit authorization. See [runtime prerequisites](runtime.md).
+startup. `npm run test:live` is that acceptance run after `npm run provision`.
+See [runtime prerequisites](runtime.md).

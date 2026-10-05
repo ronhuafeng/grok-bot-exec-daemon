@@ -7,3 +7,4 @@ bin/* text eol=lf
 # These must come last: generic extension rules also match vendor paths.
 # Preserve all imported bytes exactly.
 vendor/exec-daemon-runtime/** -text -diff !eol
+runtime-tools/**/linux-x64/** -text -diff !eol
