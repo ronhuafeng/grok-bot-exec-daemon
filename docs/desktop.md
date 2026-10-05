@@ -7,10 +7,15 @@ supported server profile. It requires `xdpyinfo`, `ffmpeg`, `ffprobe`, either
 display or a missing recording library.
 
 The acceptance test starts an isolated Xvfb display and a normal Chrome window
-on it. Chrome is not started with `--headless`. The daemon is then started with
-`--computer-use-enabled` and `--record-screen-enabled`. The test serves one
-local page, asks the daemon to click and type, and checks that the page observed
-those events. It also saves a recording and checks the file with `ffprobe`.
+on it. Chrome is not started with `--headless`. `xfwm4` is a proof-fixture
+prerequisite so the window receives keyboard focus. It is not a runtime host
+requirement and is not listed in `runtime/contract.json`. `xdotool` is a runtime
+requirement because computer-use actions invoke it, so the desktop preflight
+checks it. The daemon is then started with `--computer-use-enabled` and
+`--record-screen-enabled`. The test records the browser executable and version,
+serves one local page, asks the daemon to click and type, and checks that the
+page observed those events. It also saves a recording and checks the file with
+`ffprobe`.
 
 A failure before the daemon can see a display or a browser is a prerequisite
 failure. A failure while clicking, typing, or recording, after those tools are

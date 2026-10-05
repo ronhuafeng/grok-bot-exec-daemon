@@ -88,7 +88,12 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
   const facts = collectHostFacts();
   const gaps = evaluateHost(facts, 'desktop').filter(check => !check.ok);
   assert.deepEqual(gaps.map(check => `${check.id}: ${check.detail}`), [], 'desktop prerequisites failed before computer-use');
+  const fixture = await run('sh', ['-c', 'command -v xfwm4']);
+  assert.equal(fixture.status, 0, 'desktop fixture prerequisite: xfwm4 is not on PATH. It is required to focus the proof window and is not a runtime host-contract requirement.');
   const browser = facts.commands['google-chrome'] === true ? 'google-chrome' : 'chromium';
+  const browserVersion = await run(browser, ['--version']);
+  assert.equal(browserVersion.status, 0, `desktop prerequisite failed: ${browser} did not report a version`);
+  console.log(`browser identity: ${browser} ${browserVersion.stdout.trim()}`);
   const events: PageEvent[] = [];
   const page = createServer((request: IncomingMessage, response: ServerResponse) => {
     if (request.method === 'POST' && request.url === '/event') {
