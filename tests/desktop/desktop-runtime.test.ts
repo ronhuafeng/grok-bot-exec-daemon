@@ -120,17 +120,11 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
   await run('mkdir', ['-p', workspace, data, chromeData]);
   await run('git', ['init', workspace]);
   const display = `:${90 + (process.pid % 20)}`;
+  const displayEnv = { ...process.env, DISPLAY: display };
   const xvfb = spawn('Xvfb', [display, '-screen', '0', '1280x800x24', '-ac', '-nolisten', 'tcp'], { stdio: 'ignore' });
-  const windowManager = spawn('xfwm4', ['--replace'], { env: { ...process.env, DISPLAY: display }, stdio: 'ignore' });
+  let windowManager: ChildProcess | undefined;
+  let chrome: ChildProcess | undefined;
   const chromeLogs: Buffer[] = [];
-  const chrome = spawn(browser, [
-    '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check',
-    '--ozone-platform=x11', '--disable-gpu', '--disable-component-update', '--disable-background-networking', '--disable-sync',
-    '--kiosk', `--user-data-dir=${chromeData}`, '--disable-extensions',
-    `http://127.0.0.1:${pagePort}/`,
-  ], { env: { ...process.env, DISPLAY: display }, stdio: ['ignore', 'pipe', 'pipe'] });
-  chrome.stdout?.on('data', (chunk: Buffer) => chromeLogs.push(chunk));
-  chrome.stderr?.on('data', (chunk: Buffer) => chromeLogs.push(chunk));
   const httpPort = await freePort();
   const ptyPort = await freePort();
   const token = 'desktop-http-token';
@@ -138,6 +132,15 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
   let daemon: ChildProcess | undefined;
   try {
     await waitFor('xdpyinfo', async () => (await run('xdpyinfo', ['-display', display])).status === 0);
+    windowManager = spawn('xfwm4', ['--replace'], { env: displayEnv, stdio: 'ignore' });
+    chrome = spawn(browser, [
+    '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--no-default-browser-check',
+    '--ozone-platform=x11', '--disable-gpu', '--disable-component-update', '--disable-background-networking', '--disable-sync',
+    '--kiosk', `--user-data-dir=${chromeData}`, '--disable-extensions',
+    `http://127.0.0.1:${pagePort}/`,
+  ], { env: displayEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+    chrome.stdout?.on('data', (chunk: Buffer) => chromeLogs.push(chunk));
+    chrome.stderr?.on('data', (chunk: Buffer) => chromeLogs.push(chunk));
     await delay(1000);
     daemon = spawn(path.join(root, 'bin/exec-daemon'), [
       'serve', '--port', String(httpPort), '--pty-websocket-port', String(ptyPort), '--bind-host', '127.0.0.1',
@@ -145,7 +148,7 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
       '--computer-use-enabled', '--record-screen-enabled', '--chrome-executable-path', browser,
     ], {
       cwd: workspace,
-      env: { ...process.env, DISPLAY: display, HOME: directory, CURSOR_EXEC_DAEMON_DATA_DIR: data, EXEC_DAEMON_AUTH_TOKEN: token, EXEC_DAEMON_PTY_AUTH_TOKEN: ptyToken },
+      env: { ...displayEnv, HOME: directory, CURSOR_EXEC_DAEMON_DATA_DIR: data, EXEC_DAEMON_AUTH_TOKEN: token, EXEC_DAEMON_PTY_AUTH_TOKEN: ptyToken },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     const logs: Buffer[] = [];
@@ -165,7 +168,7 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
     let window: { x: number; y: number; width: number; height: number } | undefined;
     const mappedDeadline = Date.now() + 20000;
     while (Date.now() < mappedDeadline) {
-      if (chrome.exitCode !== null) {
+      if (chrome === undefined || chrome.exitCode !== null) {
         throw new Error(`desktop fixture prerequisite: Chrome exited ${chrome.exitCode} before mapping a window\n${Buffer.concat(chromeLogs).toString('utf8').slice(-2000)}`);
       }
       window = await chromeWindow(display);
@@ -215,14 +218,14 @@ test('non-headless Chrome computer-use and recording run on an isolated display'
     await writeFile(path.join(artifactDir, 'desktop-recording.mp4'), video);
   } finally {
     daemon?.kill('SIGTERM');
-    chrome.kill('SIGTERM');
-    windowManager.kill('SIGTERM');
+    chrome?.kill('SIGTERM');
+    windowManager?.kill('SIGTERM');
     xvfb.kill('SIGTERM');
     page.close();
     await delay(300);
     if (daemon && daemon.exitCode === null) daemon.kill('SIGKILL');
-    if (chrome.exitCode === null) chrome.kill('SIGKILL');
-    if (windowManager.exitCode === null) windowManager.kill('SIGKILL');
+    if (chrome !== undefined && chrome.exitCode === null) chrome.kill('SIGKILL');
+    if (windowManager !== undefined && windowManager.exitCode === null) windowManager.kill('SIGKILL');
     if (xvfb.exitCode === null) xvfb.kill('SIGKILL');
     await rm(directory, { recursive: true, force: true });
   }
