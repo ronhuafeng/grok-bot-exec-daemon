@@ -98,7 +98,7 @@ pass or fail. The runtime-proof workflow prepares a GitHub-hosted runner and
 then runs this same check with `--scope prepared-runner`. Core-only hosts can
 use `--profile core`. `--profile desktop` checks X11, Chrome or Chromium,
 ffmpeg, and the polished-renderer libraries. It is separate from `supported`.
-See [desktop](desktop.md) and [container](container.md).
+See [desktop](desktop.md), [container](container.md), and [supported host](supported-host.md).
 
 ## Writable state
 
@@ -123,15 +123,46 @@ addons and PTY, launcher and bundled tools, HTTP and PTY authentication, sandbox
 confinement, the Agent Store mount, cgroup reporting, and shutdown. The
 capability mapping is in [verification](strict-typescript.md).
 
-`runtime-proof.json` schema 3 records the source commit and the tested commit,
-the workflow run id and attempt, and the host scope (`prepared-runner` or
+`runtime-proof.json` schema 4 records the source commit and the tested commit,
+the workflow run id and attempt, the failure stage when preflight, build, or
+provision did not succeed, and the host scope (`prepared-runner` or
 `observed-host`) with the effective AppArmor user-namespace, FUSE
 `user_allow_other`, and bubblewrap observations. Each locked tool is `verified`,
-`absent`, or `mismatch` against the bytes this run provisioned; an optional tool
-may be absent, and a lock hash alone does not verify it. Each native check stays
-`passed`, `failed`, or `skipped`. Each declared capability is also `not-run` or
+`absent`, `mismatch`, or `unavailable`. `absent` is only an optional tool that
+was not installed. `unavailable` means a required runtime identity was not
+produced; the record does not copy that identity from the lock. Node is
+`produced` or `unavailable` the same way. Each native check stays `passed`,
+`failed`, or `skipped`. Each declared capability is also `not-run` or
 `prerequisite-blocked` when its report was not produced. A metadata failure is
-recorded separately and does not relabel native results. The Actions run URL,
-workflow, and job are included when GitHub provides them. The file is conformance evidence for that run,
-not a provenance attestation or a security review. Provenance remains in
-[provenance](provenance.md).
+recorded separately and does not relabel native results or erase the failure
+stage. The emitter writes the file before returning, including when the runtime
+Node binary is missing. The Actions run URL, workflow, and job are included when
+GitHub provides them. The file is conformance evidence for that run, not a
+provenance attestation, a redistribution authorization, or a security review.
+Provenance remains in [provenance](provenance.md). Release classification is in
+[redistribution](../runtime/redistribution.json).
+
+## Origin
+
+`origin` stays in `profiles.supported.required` because agent shells can run the
+Origin CLI when serve is started with `--origin-cli-enabled`. The invocation
+boundary is `prependExecDaemonGatedToolsToPath` in `src/runtime/index.ts`: it
+puts `dist/runtime/tools` on `PATH` after argument parsing. The locked binary is
+`dist/runtime/tools/origin`.
+
+The runtime proof runs `origin completion bash` through a daemon PTY with that
+flag. The command prints a bash completion script beginning with
+`###-begin-origin-completions-###`. A binary that only implements `--version`
+does not. This is local CLI behavior. It does not prove Origin API calls such
+as auth, pull requests, or repository operations; those need
+`origin.cursor.com` and are outside the default pull-request workflow.
+
+## Agent Store backends
+
+`--backend-mode mock` remains the default proof for FUSE read/write, cleanup,
+and liveness. `--backend-mode direct` is a separate proof against a local
+Connect/HTTP double of `MintAgentStoreToken`, `ListAgentStoreDirectory`,
+`PresignAgentStoreReads`, `PresignAgentStoreWrites`, and the presigned GET/PUT.
+The pod grant is a mode `0600` file and is not an argument. That double is not
+production Background Composer Service or S3. A mint HTTP 401 is a backend
+authentication failure, not a FUSE helper regression.

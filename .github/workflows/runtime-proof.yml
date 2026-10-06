@@ -31,23 +31,19 @@ jobs:
         with:
           node-version: 22
           package-manager-cache: false
-      - name: Install native addon libraries and archive tools
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap ffmpeg fuse3 xz-utils
       - name: Install project metadata without lifecycle hooks
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Prepare an agent-store mount point
-        run: |
-          sudo mkdir -p /cursor/stores
-          sudo chown "$(id -u):$(id -g)" /cursor /cursor/stores
-          grep -qx 'user_allow_other' /etc/fuse.conf 2>/dev/null || echo user_allow_other | sudo tee -a /etc/fuse.conf >/dev/null
-          if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          fi
+      - name: Prepare the supported host
+        id: bootstrap
+        run: deploy/bootstrap-supported-host.sh
       - name: Compile TypeScript
+        id: compile
         run: node --experimental-strip-types tools/compile.ts
       - name: Check the executable host contract
+        id: preflight
         run: node dist/project/tools/preflight-host.js --profile supported --scope prepared-runner
       - name: Build the installed runtime
+        id: build
         run: node dist/project/tools/build.js
       - name: Provision locked runtime tools
         id: provision
@@ -61,6 +57,9 @@ jobs:
       - name: Launcher and bundled tool behavior
         if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
         run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/launcher-tools.junit.xml dist/project/tests/live/daemon-runtime.test.js dist/project/tests/live/bundled-tools.test.js dist/project/tests/live/ripgrep-runtime.test.js
+      - name: Origin CLI through the daemon
+        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
+        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/origin.junit.xml dist/project/tests/live/origin-runtime.test.js
       - name: HTTP and PTY authentication
         if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
         run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/server.junit.xml dist/project/tests/live/server-runtime.test.js dist/project/tests/live/pty-auth-runtime.test.js
@@ -70,6 +69,9 @@ jobs:
       - name: Agent Store FUSE mount
         if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
         run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/agent-store.junit.xml dist/project/tests/live/agent-store-runtime.test.js
+      - name: Agent Store direct backend
+        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
+        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/agent-store-direct.junit.xml dist/project/tests/live/agent-store-direct.test.js
       - name: Cgroup resource reporting
         if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
         run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/cgroup.junit.xml dist/project/tests/live/cgroup-runtime.test.js
@@ -78,16 +80,13 @@ jobs:
         run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/shutdown.junit.xml dist/project/tests/live/shutdown-runtime.test.js
       - name: Write the runtime conformance record
         if: always()
-        run: |
-          node dist/project/tools/emit-runtime-proof.js \
-            --report 'Native addons and PTY output=proof-reports/native-pty.junit.xml' \
-            --report 'Launcher and bundled tool behavior=proof-reports/launcher-tools.junit.xml' \
-            --report 'HTTP and PTY authentication=proof-reports/server.junit.xml' \
-            --report 'Sandbox filesystem and network confinement=proof-reports/sandbox.junit.xml' \
-            --report 'Agent Store FUSE mount=proof-reports/agent-store.junit.xml' \
-            --report 'Cgroup resource reporting=proof-reports/cgroup.junit.xml' \
-            --report 'Shutdown and restart lifecycle=proof-reports/shutdown.junit.xml' \
-            --output runtime-proof.json
+        env:
+          STAGE_BOOTSTRAP: ${{ steps.bootstrap.outcome }}
+          STAGE_COMPILE: ${{ steps.compile.outcome }}
+          STAGE_PREFLIGHT: ${{ steps.preflight.outcome }}
+          STAGE_BUILD: ${{ steps.build.outcome }}
+          STAGE_PROVISION: ${{ steps.provision.outcome }}
+        run: deploy/emit-runtime-proof.sh
       - name: Upload the runtime conformance record
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
