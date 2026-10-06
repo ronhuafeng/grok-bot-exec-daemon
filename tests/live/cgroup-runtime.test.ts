@@ -87,7 +87,11 @@ test('GetResourceUsage reports the cgroup v2 limits', { timeout: 120000 }, async
     const ptyPort = await freePort();
     const args = ['serve', '--port', String(port), '--pty-websocket-port', String(ptyPort), '--bind-host', '127.0.0.1', '--rg-path', path.join(buildRoot, 'rg'), '--project-dir', workspace, '--log-level', 'error'];
     if (enabled) args.push('--machine-resources-enabled');
-    const child = spawn('bash', ['-c', 'echo $$ | sudo -n tee /sys/fs/cgroup/exec-daemon-proof/cgroup.procs >/dev/null && exec "$@"', 'exec-daemon', path.join(root, 'bin/exec-daemon'), ...args], {
+    const command = path.join(root, 'bin/exec-daemon');
+    const spawnCommand = enabled
+      ? { command: 'bash', args: ['-c', 'echo $ | sudo -n tee /sys/fs/cgroup/exec-daemon-proof/cgroup.procs >/dev/null && exec "$@"', 'exec-daemon', command, ...args] }
+      : { command, args };
+    const child = spawn(spawnCommand.command, spawnCommand.args, {
       cwd: workspace,
       env: { ...process.env, HOME: home, CURSOR_EXEC_DAEMON_DATA_DIR: path.join(directory, enabled ? 'data-on' : 'data-off'), EXEC_DAEMON_AUTH_TOKEN: token },
       stdio: ['ignore', 'pipe', 'pipe'],
