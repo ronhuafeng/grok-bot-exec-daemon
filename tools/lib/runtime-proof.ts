@@ -1,67 +1,364 @@
-export const RUNTIME_PROOF_SCHEMA_VERSION = 1;
+import { sha256 } from './runtime-provision.js';
 
-export const REQUIRED_LIVE_CHECKS = [
-  'the agent-store mount reports fuse.agent-store',
-  'the provisioned Origin CLI reports its locked version',
-  'the provisioned tmux tree runs tmux 3.5a',
-  'the provisioned agent-store helper advertises the mock backend',
-  'the project launcher prints help with the provisioned Node',
-  'the provisioned Node 22.14.0 loads the pinned native addons',
-  'the pinned pty addon opens a real process',
-  'the provisioned ripgrep accepts --cursor-ignore',
-  'cursorsandbox allows a workspace write and denies an outside write',
-  'cursorsandbox denies a local network connection',
-  'serve authenticates HTTP Ping and PTY WebSocket spawn',
-  'GetResourceUsage reports the cgroup v2 limits',
-  'graceful shutdown releases listeners and daemon-owned children',
-] as const;
+export const RUNTIME_PROOF_SCHEMA_VERSION = 4;
 
-export interface RuntimeProofTool { id: string; version: string; sha256: string }
-export interface RuntimeProofCheck { name: string; status: 'passed' }
+const commitSha = /^[0-9a-f]{40}$/;
+const contentSha = /^[0-9a-f]{64}$/;
+const apparmorValues = new Set(['0', '1', 'unavailable', 'unreadable', 'unexpected']);
+const fuseValues = new Set(['enabled', 'disabled', 'unavailable', 'unreadable']);
+const viabilityValues = new Set(['viable', 'not-viable', 'unavailable', 'unreadable']);
+const hostScopes = new Set(['observed-host', 'prepared-runner']);
+const toolStates = new Set(['verified', 'absent', 'mismatch', 'unavailable']);
+const nodeStates = new Set(['produced', 'unavailable']);
+
+export type ProofHostScope = 'observed-host' | 'prepared-runner';
+export type ToolState = 'verified' | 'absent' | 'mismatch' | 'unavailable';
+export type NodeState = 'produced' | 'unavailable';
+export type CheckStatus = 'passed' | 'failed' | 'skipped' | 'not-run' | 'prerequisite-blocked';
+export type ReportingStatus = 'ok' | 'metadata-failed';
+
+export interface RuntimeProofTool {
+  id: string;
+  version: string;
+  expectedSha256: string;
+  provisionedSha256: string | null;
+  state: ToolState;
+}
+export interface RuntimeProofCheck {
+  name: string;
+  file: string;
+  status: CheckStatus;
+  step: string;
+}
+export interface RuntimeProofReport { step: string; file: string }
+export interface RuntimeProofCapability {
+  step: string;
+  status: CheckStatus;
+  detail: string;
+}
+export interface RuntimeProofReporting { status: ReportingStatus; error: string | null }
+export interface RuntimeProofActions {
+  repository: string | null;
+  workflow: string | null;
+  job: string | null;
+  runId: string | null;
+  runAttempt: string | null;
+  runUrl: string | null;
+}
+export interface RuntimeProofHost {
+  os: string;
+  arch: string;
+  kernel: string;
+  libc: string;
+  apparmorRestrictUnprivilegedUserns: '0' | '1' | 'unavailable' | 'unreadable' | 'unexpected';
+  fuseUserAllowOther: 'enabled' | 'disabled' | 'unavailable' | 'unreadable';
+  sandboxBackend: 'bubblewrap';
+  sandboxBackendViable: 'viable' | 'not-viable' | 'unavailable' | 'unreadable';
+}
+export interface RuntimeProofNode {
+  version: string | null;
+  modules: number | null;
+  state: NodeState;
+}
 export interface RuntimeProof {
-  schemaVersion: 1;
-  commit: string;
+  schemaVersion: 4;
+  sourceCommit: string;
+  testedCommit: string;
+  workflowRunId: string | null;
+  workflowRunAttempt: string | null;
   profile: 'supported';
-  host: { os: string; arch: string; kernel: string; libc: string };
-  node: { version: string; modules: number };
+  failureStage: string | null;
+  hostScope: ProofHostScope;
+  host: RuntimeProofHost;
+  node: RuntimeProofNode;
   tools: RuntimeProofTool[];
   checks: RuntimeProofCheck[];
+  capabilities: RuntimeProofCapability[];
+  reporting: RuntimeProofReporting;
+  actions: RuntimeProofActions;
+  reports: RuntimeProofReport[];
 }
 
-export function parseTapStatuses(tap: string): Map<string, 'passed' | 'failed'> {
-  const statuses = new Map<string, 'passed' | 'failed'>();
-  for (const line of tap.split('\n')) {
-    const match = /^(not ok|ok)\s+\d+\s+-\s+(.+?)(?:\s+#.*)?$/.exec(line.trim());
-    if (!match) continue;
-    const name = match[2]?.trim();
-    if (name === undefined || name === '') continue;
-    statuses.set(name, match[1] === 'ok' ? 'passed' : 'failed');
-  }
-  return statuses;
+export interface ClassifiableTool {
+  id: string;
+  version: string;
+  optional?: boolean;
+  sha256?: string;
+  sources?: readonly { kind: string; sha256?: string }[];
+}
+export interface RuntimeProofReportInput {
+  step: string;
+  file: string;
+  xml: string | null;
+  blockedReason?: string;
+}
+export interface RuntimeProofInput {
+  sourceCommit: string;
+  testedCommit: string;
+  workflowRunId: string | null;
+  workflowRunAttempt: string | null;
+  profile: 'supported';
+  hostScope: ProofHostScope;
+  failureStage?: string | null;
+  host: RuntimeProofHost;
+  node: RuntimeProofNode;
+  tools: readonly RuntimeProofTool[];
+  reports: readonly RuntimeProofReportInput[];
+  reporting?: RuntimeProofReporting;
+  actions?: RuntimeProofActions;
+  requireAllPassed?: boolean;
 }
 
-export function buildRuntimeProof(input: Omit<RuntimeProof, 'schemaVersion' | 'checks'> & { tap: string }): RuntimeProof {
-  if (!/^[0-9a-f]{40}$/.test(input.commit)) throw new Error('Runtime proof requires the full Git commit SHA');
-  if (input.host.os !== 'linux' || input.host.arch !== 'x64' || input.host.kernel === '' || !input.host.libc.toLowerCase().includes('glibc')) {
-    throw new Error('Runtime proof host identity is incomplete');
+/** Invalid or unset workflow scope is the observed host. A prepared runner is never relabeled. */
+export function resolveProofHostScope(value: string | undefined): ProofHostScope {
+  const scope = value?.trim();
+  if (scope === 'prepared-runner' || scope === 'observed-host') return scope;
+  return 'observed-host';
+}
+
+export function passedChecks(checks: readonly RuntimeProofCheck[]): RuntimeProofCheck[] {
+  return checks.filter(check => check.status === 'passed');
+}
+
+export function classifyTool(lockEntry: ClassifiableTool, provisionedBytes: Uint8Array | undefined): RuntimeProofTool {
+  const expectedSha256 = expectedToolSha256(lockEntry);
+  if (provisionedBytes === undefined) {
+    const state: ToolState = lockEntry.optional === true ? 'absent' : 'unavailable';
+    return { id: lockEntry.id, version: lockEntry.version, expectedSha256, provisionedSha256: null, state };
   }
-  if (!/^v\d+\.\d+\.\d+$/.test(input.node.version) || !Number.isInteger(input.node.modules)) throw new Error('Runtime proof Node identity is incomplete');
-  if (input.tools.length === 0 || input.tools.some(tool => !/^[0-9a-f]{64}$/.test(tool.sha256) || tool.version === '')) {
-    throw new Error('Runtime proof tool identities are incomplete');
+  const provisionedSha256 = sha256(provisionedBytes);
+  return {
+    id: lockEntry.id,
+    version: lockEntry.version,
+    expectedSha256,
+    provisionedSha256,
+    state: provisionedSha256 === expectedSha256 ? 'verified' : 'mismatch',
+  };
+}
+
+/** Required tools must be verified. Optional absence is not the same as a required identity that was never produced. */
+export function assertProducedToolIdentity(tools: readonly { id: string; optional: boolean; state: ToolState }[]): void {
+  for (const tool of tools) {
+    if (tool.state === 'verified') continue;
+    if (tool.optional && tool.state === 'absent') continue;
+    if (tool.state === 'unavailable') throw new Error(`Required runtime identity could not be produced: ${tool.id}`);
+    throw new Error(`Runtime proof tool is not verified: ${tool.id} (${tool.state})`);
   }
-  const statuses = parseTapStatuses(input.tap);
+}
+
+export function buildRuntimeProof(input: RuntimeProofInput): RuntimeProof {
+  if (!commitSha.test(input.sourceCommit) || !commitSha.test(input.testedCommit)) {
+    throw new Error('Runtime proof requires full Git commit SHAs');
+  }
+  if (input.profile !== 'supported') throw new Error('Runtime proof profile is incomplete');
+  if (!hostScopes.has(input.hostScope)) throw new Error('Runtime proof host scope is incomplete');
+  assertHost(input.host);
+  assertNode(input.node);
+  const failureStage = input.failureStage ?? null;
+  if (failureStage !== null && failureStage.trim() === '') throw new Error('Runtime proof failure stage is incomplete');
+  if (input.workflowRunId !== null && input.workflowRunId === '') throw new Error('Runtime proof workflow run id is incomplete');
+  if (input.workflowRunAttempt !== null && input.workflowRunAttempt === '') throw new Error('Runtime proof workflow run attempt is incomplete');
+  if (input.tools.length === 0) throw new Error('Runtime proof tool identities are incomplete');
+  for (const tool of input.tools) assertTool(tool);
+  if (input.reports.length === 0) throw new Error('JUnit report is missing');
   const checks: RuntimeProofCheck[] = [];
-  for (const name of REQUIRED_LIVE_CHECKS) {
-    if (statuses.get(name) !== 'passed') throw new Error(`Required live check did not pass: ${name}`);
-    checks.push({ name, status: 'passed' });
+  const reports: RuntimeProofReport[] = [];
+  const capabilities: RuntimeProofCapability[] = [];
+  for (const report of input.reports) {
+    if (report.step.trim() === '' || report.file.trim() === '') throw new Error('JUnit report identity is incomplete');
+    reports.push({ step: report.step, file: report.file });
+    const blocked = report.blockedReason?.trim();
+    if (blocked !== undefined && blocked !== '') {
+      capabilities.push({ step: report.step, status: 'prerequisite-blocked', detail: blocked });
+      continue;
+    }
+    if (report.xml === null) {
+      capabilities.push({ step: report.step, status: 'not-run', detail: 'junit report was not produced' });
+      continue;
+    }
+    const parsed = parseJunitChecks(report.xml, report.file, report.step);
+    checks.push(...parsed);
+    capabilities.push({ step: report.step, status: capabilityStatus(parsed), detail: `${parsed.length} native results` });
+  }
+  const reporting = input.reporting ?? { status: 'ok' as const, error: null };
+  if (reporting.status !== 'ok' && reporting.status !== 'metadata-failed') throw new Error('Runtime proof reporting status is incomplete');
+  if (input.requireAllPassed === true && (checks.some(check => check.status !== 'passed') || capabilities.some(item => item.status !== 'passed'))) {
+    throw new Error('Runtime proof check did not pass');
   }
   return {
     schemaVersion: RUNTIME_PROOF_SCHEMA_VERSION,
-    commit: input.commit,
+    sourceCommit: input.sourceCommit,
+    testedCommit: input.testedCommit,
+    workflowRunId: input.workflowRunId,
+    workflowRunAttempt: input.workflowRunAttempt,
     profile: 'supported',
-    host: input.host,
-    node: input.node,
-    tools: input.tools,
+    failureStage,
+    hostScope: input.hostScope,
+    host: { ...input.host },
+    node: { version: input.node.version, modules: input.node.modules, state: input.node.state },
+    tools: input.tools.map(tool => ({ ...tool })),
     checks,
+    capabilities,
+    reporting,
+    actions: input.actions ?? {
+      repository: null,
+      workflow: null,
+      job: null,
+      runId: input.workflowRunId,
+      runAttempt: input.workflowRunAttempt,
+      runUrl: null,
+    },
+    reports,
   };
+}
+
+function capabilityStatus(checks: readonly RuntimeProofCheck[]): CheckStatus {
+  if (checks.some(check => check.status === 'failed')) return 'failed';
+  if (checks.some(check => check.status === 'skipped')) return 'skipped';
+  return 'passed';
+}
+
+function expectedToolSha256(lockEntry: ClassifiableTool): string {
+  if (lockEntry.id === '' || lockEntry.version === '') throw new Error('Runtime proof tool identities are incomplete');
+  if (lockEntry.sha256 !== undefined) {
+    if (!contentSha.test(lockEntry.sha256)) throw new Error(`Runtime proof tool hash is incomplete: ${lockEntry.id}`);
+    return lockEntry.sha256;
+  }
+  const archive = lockEntry.sources?.find(source => source.kind === 'repo-archive' && source.sha256 !== undefined);
+  if (archive?.sha256 !== undefined && contentSha.test(archive.sha256)) return archive.sha256;
+  throw new Error(`Runtime proof tool hash is incomplete: ${lockEntry.id}`);
+}
+
+function assertHost(host: RuntimeProofHost): void {
+  if (host.os !== 'linux' || host.arch !== 'x64' || host.kernel === '' || !host.libc.toLowerCase().includes('glibc')) {
+    throw new Error('Runtime proof host identity is incomplete');
+  }
+  if (!apparmorValues.has(host.apparmorRestrictUnprivilegedUserns) || !fuseValues.has(host.fuseUserAllowOther)) {
+    throw new Error('Runtime proof host identity is incomplete');
+  }
+  if (host.sandboxBackend !== 'bubblewrap' || !viabilityValues.has(host.sandboxBackendViable)) {
+    throw new Error('Runtime proof host identity is incomplete');
+  }
+}
+
+function assertNode(node: RuntimeProofNode): void {
+  if (!nodeStates.has(node.state)) throw new Error('Runtime proof Node identity is incomplete');
+  if (node.state === 'unavailable') {
+    if (node.version !== null || node.modules !== null) throw new Error('Runtime proof Node identity is incomplete');
+    return;
+  }
+  if (node.version === null || !/^v\d+\.\d+\.\d+$/.test(node.version) || !Number.isInteger(node.modules)) {
+    throw new Error('Runtime proof Node identity is incomplete');
+  }
+}
+
+function assertTool(tool: RuntimeProofTool): void {
+  if (tool.id === '' || tool.version === '' || !contentSha.test(tool.expectedSha256) || !toolStates.has(tool.state)) {
+    throw new Error('Runtime proof tool identities are incomplete');
+  }
+  if (tool.state === 'absent' || tool.state === 'unavailable') {
+    if (tool.provisionedSha256 !== null) throw new Error('Runtime proof tool identities are incomplete');
+    return;
+  }
+  if (tool.provisionedSha256 === null || !contentSha.test(tool.provisionedSha256)) {
+    throw new Error('Runtime proof tool identities are incomplete');
+  }
+  const matches = tool.provisionedSha256 === tool.expectedSha256;
+  if (tool.state === 'verified' && !matches) throw new Error('Runtime proof tool identities are incomplete');
+  if (tool.state === 'mismatch' && matches) throw new Error('Runtime proof tool identities are incomplete');
+}
+
+function parseJunitChecks(xml: string, reportFile: string, step: string): RuntimeProofCheck[] {
+  const trimmed = xml.replace(/^\uFEFF/, '').trim();
+  if (trimmed === '') throw new Error('JUnit report is empty');
+  if (!trimmed.startsWith('<')) throw new Error('JUnit report is not XML');
+  if (!/<(?:testsuites|testsuite|testcase)(?:\s|>|\/)/.test(trimmed)) throw new Error('JUnit report is not XML');
+  const checks: RuntimeProofCheck[] = [];
+  let index = 0;
+  while (index < trimmed.length) {
+    const start = trimmed.indexOf('<testcase', index);
+    if (start === -1) break;
+    const tagEnd = trimmed.indexOf('>', start);
+    if (tagEnd === -1) throw new Error('JUnit report is not XML');
+    const opening = trimmed.slice(start, tagEnd + 1);
+    const attrs = parseAttributes(opening);
+    const name = attrs.get('name');
+    if (name === undefined || name === '') throw new Error('JUnit testcase name is missing');
+    let body = '';
+    let next = tagEnd + 1;
+    if (!opening.endsWith('/>')) {
+      const close = findClosingTestcase(trimmed, tagEnd + 1);
+      body = trimmed.slice(tagEnd + 1, close.start);
+      next = close.end;
+    }
+    if (next <= index) throw new Error('JUnit report is not XML');
+    checks.push({ name, file: testcaseFile(attrs, reportFile), status: testcaseStatus(body), step });
+    index = next;
+  }
+  if (checks.length === 0) throw new Error('JUnit report is empty');
+  return checks;
+}
+
+function testcaseStatus(body: string): CheckStatus {
+  if (/<(?:failure|error)(?:\s|\/|>)/.test(body)) return 'failed';
+  if (/<skipped(?:\s|\/|>)/.test(body)) return 'skipped';
+  return 'passed';
+}
+
+function testcaseFile(attrs: Map<string, string>, reportFile: string): string {
+  // Node 22's JUnit reporter hardcodes classname="test" and omits the source path.
+  const explicit = attrs.get('file');
+  if (explicit !== undefined && explicit !== '') return fileBasename(explicit);
+  const classname = attrs.get('classname');
+  if (classname !== undefined && classname !== 'test' && /\.(?:js|mjs|cjs|ts)$/.test(classname)) return fileBasename(classname);
+  const base = fileBasename(reportFile);
+  if (base === '') throw new Error('JUnit report file name is missing');
+  return base;
+}
+
+function fileBasename(file: string): string {
+  const parts = file.replace(/\\/g, '/').split('/');
+  return parts.at(-1) ?? file;
+}
+
+function parseAttributes(tag: string): Map<string, string> {
+  const attrs = new Map<string, string>();
+  for (const match of tag.matchAll(/([A-Za-z_][\w:.-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    const key = match[1];
+    const value = match[2] ?? match[3];
+    if (key === undefined || value === undefined) continue;
+    attrs.set(key, decodeXml(value));
+  }
+  return attrs;
+}
+
+function findClosingTestcase(xml: string, from: number): { start: number; end: number } {
+  let depth = 1;
+  let index = from;
+  while (index < xml.length) {
+    const nextOpen = xml.indexOf('<testcase', index);
+    const nextClose = xml.indexOf('</testcase>', index);
+    if (nextClose === -1) throw new Error('JUnit report is not XML');
+    if (nextOpen !== -1 && nextOpen < nextClose) {
+      depth += 1;
+      index = nextOpen + '<testcase'.length;
+      continue;
+    }
+    depth -= 1;
+    if (depth === 0) return { start: nextClose, end: nextClose + '</testcase>'.length };
+    index = nextClose + '</testcase>'.length;
+  }
+  throw new Error('JUnit report is not XML');
+}
+
+function decodeXml(value: string): string {
+  return value.replace(/&(?:#x[0-9a-fA-F]+|#\d+|lt|gt|amp|quot|apos);/g, entity => {
+    if (entity === '&lt;') return '<';
+    if (entity === '&gt;') return '>';
+    if (entity === '&amp;') return '&';
+    if (entity === '&quot;') return '"';
+    if (entity === '&apos;') return "'";
+    if (entity.startsWith('&#x')) return String.fromCodePoint(Number.parseInt(entity.slice(3, -1), 16));
+    return String.fromCodePoint(Number.parseInt(entity.slice(2, -1), 10));
+  });
 }

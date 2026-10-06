@@ -17,10 +17,10 @@ import { refreshGitTokenForCurrentWorkspace } from "./refresh-git-token.js";
 import { writeRequestContextDiskCache, resolveRequestContextDiskCachePath } from "./request-context-disk-cache.js";
 import { createServeCommand, collectUnknownServeOptions } from "./serveCommand.js";
 import { startServer, startPtyHostWebSocketServer } from "./server.js";
-import { AUTH_TOKEN_ENV_VAR, AUTH_TOKEN_FILE_ENV_VAR, BIND_HOST_ENV_VAR, PTY_AUTH_TOKEN_ENV_VAR, PTY_AUTH_TOKEN_FILE_ENV_VAR, PTY_BIND_HOST_ENV_VAR, resolveAuthSecret, resolveBindHost } from "./runtime-ingress.js";
+import { AUTH_TOKEN_ENV_VAR, AUTH_TOKEN_FILE_ENV_VAR, BIND_HOST_ENV_VAR, PTY_AUTH_TOKEN_ENV_VAR, PTY_AUTH_TOKEN_FILE_ENV_VAR, PTY_BIND_HOST_ENV_VAR, decidePtyListener, resolveAuthSecret, resolveBindHost } from "./runtime-ingress.js";
 import { EXEC_DAEMON_DATA_DIR_ENV_VAR, setupDaemon } from "./setup.js";
 import { withStartupTraceparent } from "./startup-traceparent.js";
-import { TmuxSessionManager } from "./tmux-session-manager.js";
+import { resolveTmuxServerSocket, TmuxSessionManager } from "./tmux-session-manager.js";
 import { initTracing, shutdownTracing } from "./tracing.js";
 import { discoverExecDaemonWorkspacePaths } from "./workspace-discovery.js";
 import type { Context } from "../interop/contracts/context.js";
@@ -156,9 +156,22 @@ async function start(argv: string[]): Promise<void> {
         });
         const bindHost = resolveBindHost(opts.bindHost, process.env[BIND_HOST_ENV_VAR]);
         const ptyBindHost = resolveBindHost(opts.ptyBindHost, process.env[PTY_BIND_HOST_ENV_VAR]) ?? bindHost;
+        const ptyListener = (() => {
+            try {
+                return decidePtyListener({
+                    secret: ptyAuth,
+                    allowAnonymous: opts.allowUnauthenticatedPty,
+                    bindHost: ptyBindHost,
+                });
+            }
+            catch (error) {
+                execDaemonLogger.error(globalContext, error instanceof Error ? error.message : String(error));
+                process.exit(1);
+            }
+        })();
         execDaemonLogger.info(globalContext, "Listener authentication configured", {
             httpAuthSource: httpAuth.source,
-            ptyAuthSource: ptyAuth?.source ?? "disabled",
+            ptyAuthSource: ptyListener.mode === "authenticated" ? ptyListener.source : ptyListener.mode,
             bindHost: bindHost ?? "all-interfaces",
             ptyBindHost: ptyBindHost ?? "all-interfaces",
         });
@@ -172,9 +185,10 @@ async function start(argv: string[]): Promise<void> {
         await runServer({
             ...opts,
             authToken: httpAuth.value,
-            ptyAuthToken: ptyAuth?.value,
+            ptyAuthToken: ptyListener.mode === "authenticated" ? ptyListener.token : undefined,
             bindHost,
-            ptyBindHost,
+            ptyBindHost: ptyListener.mode === "anonymous" ? ptyListener.bindHost : ptyBindHost,
+            startPtyListener: ptyListener.mode !== "disabled",
             logLevel: opts.logLevel ?? filteredLoggerBackend.getMinLevel(),
         });
     });
@@ -230,7 +244,7 @@ async function start(argv: string[]): Promise<void> {
         await writeRequestContextDiskCache(ctx, resolveRequestContextDiskCachePath(dataDir), requestContext);
     }
     // Server implementation
-    async function runServer(opts: Omit<ServeOptions, "logLevel" | "authToken"> & { logLevel: string; authToken: string }) {
+    async function runServer(opts: Omit<ServeOptions, "logLevel" | "authToken"> & { logLevel: string; authToken: string; startPtyListener: boolean }) {
         // Initialize tracing early, before any spans are created
         // Only enable tracing when ghost mode is disabled and trace endpoint + token are provided
         const willInitTracing = !!(opts.traceEndpoint && opts.traceAuthToken && !opts.ghostMode);
@@ -392,6 +406,7 @@ async function start(argv: string[]): Promise<void> {
                 ptyManager,
                 tmuxBinaryPath: opts.tmuxPath,
                 tmuxConfigPath: opts.tmuxConfPath,
+                serverSocket: resolveTmuxServerSocket(dataDir),
             })
             : undefined;
         const machineResourceMonitor = new MachineResourceMonitor({
@@ -422,12 +437,14 @@ async function start(argv: string[]): Promise<void> {
             process.exit(1);
         });
         reportEvent(startupCtx, "startup.http_listening");
-        // Start the PTY host WebSocket server
-        const stopPtyWebSocketServer = await runStartupStep("exec_daemon.startup.start_pty_websocket_server", async (stepCtx) => await startPtyHostWebSocketServer(stepCtx, opts.ptyWebsocketPort, ptyManager, tmuxSessionManager, opts.ptyAuthToken, machineResourceMonitor, opts.ptyBindHost)).catch((error: unknown) => {
-            endStartupSpan(error);
-            execDaemonLogger.error(startupCtx, "Failed to start PTY WebSocket server", error);
-            process.exit(1);
-        });
+        // A missing PTY token disables the listener. HTTP auth must not leave an anonymous socket open.
+        const stopPtyWebSocketServer = opts.startPtyListener
+            ? await runStartupStep("exec_daemon.startup.start_pty_websocket_server", async (stepCtx) => await startPtyHostWebSocketServer(stepCtx, opts.ptyWebsocketPort, ptyManager, tmuxSessionManager, opts.ptyAuthToken, machineResourceMonitor, opts.ptyBindHost)).catch((error: unknown) => {
+                endStartupSpan(error);
+                execDaemonLogger.error(startupCtx, "Failed to start PTY WebSocket server", error);
+                process.exit(1);
+            })
+            : async () => { };
         reportEvent(startupCtx, "startup.pty_websocket_listening");
         reportEvent(startupCtx, "startup.ready_for_ping");
         endStartupSpan();
@@ -451,8 +468,9 @@ async function start(argv: string[]): Promise<void> {
                 await stopPtyWebSocketServer();
                 machineResourceMonitor.stop();
                 fuseLivenessMonitor.stop();
-                // Dispose all PTY instances
+                // Dispose all PTY instances, including descendants in each process group.
                 ptyManager.dispose();
+                await tmuxSessionManager?.dispose();
                 // Dispose MCP file system writer
                 mcpFileSystemWriter?.dispose();
                 await closeMcpClients();

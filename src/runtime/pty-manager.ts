@@ -315,7 +315,24 @@ export class PtyManager implements PtyHostManagerPort {
         });
         for (const instance of this.ptys.values()) {
             try {
-                instance.pty.kill();
+                const pid = instance.pty.pid;
+                try {
+                    instance.pty.kill();
+                }
+                finally {
+                    // pty.kill() signals only the leader. Descendants stay in the
+                    // session process group, so signal that group too. Never -1 or 0.
+                    if (pid > 1) {
+                        try {
+                            process.kill(-pid, "SIGTERM");
+                        }
+                        catch (error) {
+                            if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) {
+                                throw error;
+                            }
+                        }
+                    }
+                }
             }
             catch (error) {
                 logger.error(this.ctx, "Error killing PTY during disposal", {

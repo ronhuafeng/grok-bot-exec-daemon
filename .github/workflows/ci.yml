@@ -34,7 +34,25 @@ jobs:
           package-manager-cache: false
       - name: Install project metadata without lifecycle hooks
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Verify, test and build offline
-        run: npm run check
+      - name: Compile TypeScript
+        run: node --experimental-strip-types tools/compile.ts
+      - name: Check strict types and module boundaries
+        run: node dist/project/tools/typecheck.js
+      - name: Check generated protocol contracts
+        run: node dist/project/tools/generate-proto-contracts.js --check
+      - name: Verify pinned snapshot
+        run: node dist/project/tools/verify-snapshot.js
+      - name: Check redistribution inventory completeness
+        run: node dist/project/tools/check-redistribution.js
+      - name: Check JavaScript and launcher syntax
+        run: node dist/project/tools/check-syntax.js
+      - name: Prepare test capsule and module scopes
+        run: node dist/project/tools/prepare-tests.js
+      - name: Test offline runtime contracts
+        run: node --experimental-test-module-mocks --test --test-concurrency=2 --test-reporter=spec dist/project/tests/*.test.js
+      - name: Build installed runtime
+        run: node dist/project/tools/build.js
+      - name: Verify installed artifact
+        run: node dist/project/tools/verify-build.js
       - name: Ensure generated files did not change the checkout
         run: git diff --exit-code && test -z "$(git ls-files --others --exclude-standard)"

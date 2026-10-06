@@ -36,11 +36,33 @@
   },
   "host": {
     "core": { "os": "linux", "arch": "x64", "libc": "glibc" },
-    "sandbox": { "executable": "bwrap", "unprivilegedUserNamespace": true },
-    "agentStore": { "device": "/dev/fuse", "fuseConf": "user_allow_other", "executable": "fusermount3" },
-    "cgroup": { "version": 2, "mount": "/sys/fs/cgroup" }
+    "sandbox": {
+      "executable": "bwrap",
+      "backend": "bubblewrap",
+      "probe": ["--unshare-user", "--unshare-net", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--", "true"],
+      "apparmorSysctl": "/proc/sys/kernel/apparmor_restrict_unprivileged_userns",
+      "unprivilegedUserNamespace": "viable-probe-required"
+    },
+    "agentStore": {
+      "device": "/dev/fuse",
+      "fuseConf": "/etc/fuse.conf",
+      "fuseConfSetting": "user_allow_other",
+      "executable": "fusermount3"
+    },
+    "cgroup": { "version": 2, "mount": "/sys/fs/cgroup", "marker": "cgroup.controllers" },
+    "desktop": {
+      "executables": ["xdpyinfo", "xrandr", "ffmpeg", "ffprobe", "xdotool"],
+      "browsers": ["google-chrome", "chromium"],
+      "sharedLibraries": ["libfreetype.so.6", "libavcodec.so.60", "libavdevice.so.60", "libavformat.so.60", "libavutil.so.58", "libswscale.so.7"]
+    },
+    "scopeNote": "Preflight reads this host object. It records observed-host unless the caller passes --scope prepared-runner, and it never changes sysctls, AppArmor, or fuse.conf. xfwm4 is a desktop proof fixture, not a runtime requirement."
   },
-  "desktop": {
-    "sharedLibraries": ["libfreetype.so.6", "libavcodec.so.60", "libavformat.so.60", "libavutil.so.58", "libswscale.so.7"]
+  "container": {
+    "profile": "core",
+    "user": "exec",
+    "uid": 1010,
+    "readOnlyRoot": true,
+    "writableMounts": ["/data", "/workspace", "/tmp", "/home/exec"],
+    "secretEnv": ["EXEC_DAEMON_AUTH_TOKEN", "EXEC_DAEMON_PTY_AUTH_TOKEN"]
   }
 }

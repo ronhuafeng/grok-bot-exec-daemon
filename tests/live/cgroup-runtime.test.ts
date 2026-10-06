@@ -34,6 +34,27 @@ function freePort(): Promise<number> {
   });
 }
 
+function assertRecord(value: unknown, detail: string): asserts value is Record<string, unknown> {
+  assert.ok(value !== null && typeof value === 'object' && !Array.isArray(value), detail);
+}
+
+function parseUsage(body: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(body);
+  assertRecord(parsed, body);
+  return parsed;
+}
+
+function assertResourceUsage(usage: Record<string, unknown>, detail: string): void {
+  assertRecord(usage.limits, detail);
+  const memory = usage.limits.memoryLimitBytes;
+  assert.ok(memory === memoryLimit || memory === String(memoryLimit), `${detail} limits.memoryLimitBytes=${JSON.stringify(memory)}`);
+  assert.equal(usage.limits.cpuLimitMcores, cpuLimitMcores, `${detail} limits.cpuLimitMcores=${JSON.stringify(usage.limits.cpuLimitMcores)}`);
+  const scope = usage.limits.scope;
+  assert.ok(typeof scope === 'string' && scope.includes('CONTAINER'), `${detail} limits.scope=${JSON.stringify(scope)}`);
+  assertRecord(usage.current, detail);
+  assert.ok('memoryUsedBytes' in usage.current, `${detail} current=${JSON.stringify(usage.current)}`);
+}
+
 async function prepareCgroup(): Promise<void> {
   await run('sudo', ['-n', 'mkdir', '-p', cgroup]);
   await new Promise<void>((resolve, reject) => {
@@ -91,18 +112,22 @@ test('GetResourceUsage reports the cgroup v2 limits', { timeout: 120000 }, async
       if (response?.status === 200) { body = await response.text(); break; }
       await new Promise(resolve => setTimeout(resolve, 200));
     }
-    assert.match(body, /CONTAINER/, Buffer.concat(logs).toString('utf8').slice(-2000));
-    assert.match(body, new RegExp(String(memoryLimit)));
-    assert.match(body, new RegExp(`"cpuLimitMcores":\\s*${cpuLimitMcores}`));
-    assert.match(body, /"memoryUsedBytes"/);
-    const cursor = /"nextCursor"\s*:\s*"([^"]+)"/.exec(body)?.[1];
-    assert.ok(cursor, body);
+    const logTail = Buffer.concat(logs).toString('utf8').slice(-2000);
+    assert.notEqual(body, '', logTail);
+    const usage = parseUsage(body);
+    assertResourceUsage(usage, `${body}\n${logTail}`);
+    const cursor = usage.nextCursor;
+    assert.ok(typeof cursor === 'string' && cursor.length > 0, body);
     const continued = await fetch(`http://127.0.0.1:${enabled.port}/agent.v1.ControlService/GetResourceUsage`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'connect-protocol-version': '1', authorization: `Bearer ${token}` },
       body: JSON.stringify({ cursor }),
     });
     assert.equal(continued.status, 200);
+    const continuedBody = await continued.text();
+    const continuedUsage = parseUsage(continuedBody);
+    assertResourceUsage(continuedUsage, continuedBody);
+    assert.ok(continuedUsage.history === undefined || (Array.isArray(continuedUsage.history) && continuedUsage.history.length === 0), continuedBody);
     const disabledResponse = await fetch(`http://127.0.0.1:${disabled.port}/agent.v1.ControlService/GetResourceUsage`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'connect-protocol-version': '1', authorization: `Bearer ${token}` },
