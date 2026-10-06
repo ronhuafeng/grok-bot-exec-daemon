@@ -12,9 +12,9 @@ for (const directory of ['dist/project/tools', 'dist/project/tests']) {
     count++;
   }
 }
-for (const script of ['bin/exec-daemon', 'deploy/bootstrap-supported-host.sh', 'deploy/emit-runtime-proof.sh']) {
+for (const script of ['bin/exec-daemon', 'deploy/bootstrap-supported-host.sh']) {
   const shell = spawnSync('bash', ['-n', path.join(root, script)], { stdio: 'inherit' });
   if (shell.error) throw shell.error;
   if (shell.status !== 0) process.exit(shell.status ?? 1);
 }
-console.log(`Syntax checked ${count} JavaScript files, the project launcher, and deployment scripts.`);
+console.log(`Syntax checked ${count} JavaScript files, the project launcher, and host bootstrap.`);

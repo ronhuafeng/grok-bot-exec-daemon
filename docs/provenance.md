@@ -64,40 +64,21 @@ for the non-Node tools. Matching a hash does not infer a redistribution license.
 optional. They are not stored, because the supported profile does not require
 those exact bytes.
 
-## License status
+## Research-only boundary
 
-No top-level license grant accompanied the runtime snapshot. No replacement
-license is added by this restructuring. `private: true` is a publishing guard,
-not a license. Neither the repository name nor generated source organization
-establishes rights to publish upstream-owned code.
+No top-level license grant accompanied the runtime snapshot, and this
+reconstruction does not create one. Matching hashes, package names, repository
+metadata, or observed paths are provenance facts; they do not establish
+redistribution rights.
 
-All imported standalone license/notice files and embedded copyright/license
-comments are retained. Examples include the npm license and nested package
-licenses, `@jsquash/webp` and its codec notices, `esbuild-wasm/LICENSE.md`, and
-`typescript/LICENSE.txt`. These notices apply to their respective components;
-they do not grant a blanket license for the complete runtime. This list is not
-a completed legal review or comprehensive SBOM.
+The captured runtime and tools are maintained here for private research and
+compatibility work. The project has no public/commercial release path for these
+captured artifacts. Keep repositories and artifact storage containing them
+private.
 
-Before public distribution, the owner must establish permission for the runtime,
-the recovered upstream-derived code, native artifacts and assets; reconcile
-component notices; decide licensing for newly authored project files; and
-document the supported build/runtime toolchain. No repository visibility,
-package publishing, release or deployment change is part of this conversion.
+The package remains `"private": true` as a simple accidental-publish guard.
+That field is not a license.
 
-## Three different records
-
-These stay separate:
-
-| Record | Question it answers |
-| --- | --- |
-| This provenance page and `vendor/snapshot.json` | Where the bytes came from |
-| `runtime-proof.json` | What a runtime proof run observed |
-| `runtime/redistribution.json` | Whether a release may ship each component |
-
-A checksum, a git tree id, `private: true`, or GitHub visibility does not move a
-component out of `unresolved`. `node dist/project/tools/check-redistribution.js`
-checks that every required class has a status. `node dist/project/tools/check-redistribution.js --public`
-fails while any packaged or recorded component is `unresolved`, `blocked`, or
-`internal`. Developer and runtime proofs keep using the captured artifacts; those
-proofs are not public-release evidence. Notices are indexed in
-[runtime/NOTICES.md](../runtime/NOTICES.md).
+If product intent later changes to public or commercial distribution, perform a
+fresh licensing/provenance review before creating a release path. Add only the
+release machinery required by that concrete requirement.

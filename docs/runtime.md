@@ -119,29 +119,11 @@ alone does not open an unauthenticated PTY socket.
 listener only on a loopback bind host (`127.0.0.1`, `::1`, or `localhost`).
 TLS for a public listener belongs to the surrounding deployment.
 
-Runtime proof calls `node --test` directly in semantic workflow steps: native
-addons and PTY, launcher and bundled tools, HTTP and PTY authentication, sandbox
-confinement, the Agent Store mount, cgroup reporting, and shutdown. The
-capability mapping is in [verification](strict-typescript.md).
+Runtime proof runs native `node --test` commands directly in semantic
+workflow steps. A green step is the acceptance result for the behavior named by
+that step; there is no secondary conformance-record verdict. The capability
+mapping is in [verification](strict-typescript.md).
 
-`runtime-proof.json` schema 4 records the source commit and the tested commit,
-the workflow run id and attempt, the failure stage when preflight, build, or
-provision did not succeed, and the host scope (`prepared-runner` or
-`observed-host`) with the effective AppArmor user-namespace, FUSE
-`user_allow_other`, and bubblewrap observations. Each locked tool is `verified`,
-`absent`, `mismatch`, or `unavailable`. `absent` is only an optional tool that
-was not installed. `unavailable` means a required runtime identity was not
-produced; the record does not copy that identity from the lock. Node is
-`produced` or `unavailable` the same way. Each native check stays `passed`,
-`failed`, or `skipped`. Each declared capability is also `not-run` or
-`prerequisite-blocked` when its report was not produced. A metadata failure is
-recorded separately and does not relabel native results or erase the failure
-stage. The emitter writes the file before returning, including when the runtime
-Node binary is missing. The Actions run URL, workflow, and job are included when
-GitHub provides them. The file is conformance evidence for that run, not a
-provenance attestation, a redistribution authorization, or a security review.
-Provenance remains in [provenance](provenance.md). Release classification is in
-[redistribution](../runtime/redistribution.json).
 
 ## Origin
 
@@ -151,7 +133,7 @@ boundary is `prependExecDaemonGatedToolsToPath` in `src/runtime/index.ts`: it
 puts `dist/runtime/tools` on `PATH` after argument parsing. The locked binary is
 `dist/runtime/tools/origin`.
 
-The runtime proof runs `origin completion bash` through a daemon PTY with that
+The Runtime proof workflow runs `origin completion bash` through a daemon PTY with that
 flag. The command prints a bash completion script beginning with
 `###-begin-origin-completions-###`. A binary that only implements `--version`
 does not. This is local CLI behavior. It does not prove Origin API calls such

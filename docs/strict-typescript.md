@@ -2,9 +2,9 @@
 
 This document inventories concrete compiler, migration, behavior, and runtime
 evidence. The project-wide rules for interpreting that evidence are defined in
-[property-oriented verification](verification-methodology.md): properties are
-the subject of verification, while tests and workflows are maintained proof
-harnesses rather than truth authorities.
+[property-oriented verification](verification-methodology.md): a green semantic
+workflow is accepted proof for the scoped behavior its native steps directly
+exercise.
 
 ## Compiler coverage
 
@@ -93,16 +93,18 @@ Store proof uses the mock helper; it is not production storage proof. See
 
 | Profile / capability | Behavior | Test file | Workflow step |
 | --- | --- | --- | --- |
-| supported / native addons | Provisioned Node 22.14.0 loads the pinned native addons | `tests/live/native-runtime.test.ts` | Native addons and PTY output |
-| supported / PTY | The pinned pty addon opens a real process | `tests/live/pty-runtime.test.ts` | Native addons and PTY output |
-| supported / launcher | The project launcher prints help with the provisioned Node | `tests/live/daemon-runtime.test.ts` | Launcher and bundled tool behavior |
-| supported / bundled tools | Origin, tmux 3.5a, and the mock agent-store helper run from the provisioned tree | `tests/live/bundled-tools.test.ts` | Launcher and bundled tool behavior |
-| supported / ripgrep | Provisioned ripgrep accepts `--cursor-ignore` | `tests/live/ripgrep-runtime.test.ts` | Launcher and bundled tool behavior |
-| supported / HTTP and PTY auth | `serve` authenticates HTTP Ping and PTY WebSocket spawn, and a missing PTY token leaves that listener closed | `tests/live/server-runtime.test.ts`, `tests/live/pty-auth-runtime.test.ts` | HTTP and PTY authentication |
+| supported / native addons | Provisioned Node 22.14.0 loads the pinned native addons | `tests/live/native-runtime.test.ts` | Load native addons and open a PTY |
+| supported / PTY | The pinned pty addon opens a real process | `tests/live/pty-runtime.test.ts` | Load native addons and open a PTY |
+| supported / launcher | The project launcher prints help with the provisioned Node | `tests/live/daemon-runtime.test.ts` | Run launcher and locked command-line tools |
+| supported / bundled tools | Origin, tmux 3.5a, and the mock agent-store helper run from the provisioned tree | `tests/live/bundled-tools.test.ts` | Run launcher and locked command-line tools |
+| supported / ripgrep | Provisioned ripgrep accepts `--cursor-ignore` | `tests/live/ripgrep-runtime.test.ts` | Run launcher and locked command-line tools |
+| supported / Origin | The locked Origin CLI is exposed through a daemon PTY and produces shell completions | `tests/live/origin-runtime.test.ts` | Expose Origin through daemon PTY |
+| supported / Agent Store direct protocol | The locked helper reads and writes through the direct token/list/presign protocol fixture | `tests/live/agent-store-direct.test.ts` | Exercise Agent Store direct protocol |
+| supported / HTTP and PTY auth | `serve` authenticates HTTP Ping and PTY WebSocket spawn, and a missing PTY token leaves that listener closed | `tests/live/server-runtime.test.ts`, `tests/live/pty-auth-runtime.test.ts` | Authenticate HTTP and PTY listeners |
 | supported / Agent Store cleanup and liveness | Unmount failures fall through, and a hung FUSE probe kills only the matching pid | `tests/fuse-cleanup.test.ts`, `tests/fuse-liveness-recovery.test.ts` | Test offline runtime contracts |
-| supported / sandbox | A workspace write is allowed; an outside write and a local network connection are denied | `tests/live/sandbox-runtime.test.ts` | Sandbox filesystem and network confinement |
-| supported / Agent Store | The mount reports `fuse.agent-store` through the mock helper | `tests/live/agent-store-runtime.test.ts` | Agent Store FUSE mount |
-| supported / cgroup | `GetResourceUsage` reports the cgroup v2 limits | `tests/live/cgroup-runtime.test.ts` | Cgroup resource reporting |
-| supported / shutdown | Graceful shutdown releases listeners and daemon-owned children | `tests/live/shutdown-runtime.test.ts` | Shutdown and restart lifecycle |
+| supported / sandbox | A workspace write is allowed; an outside write and a local network connection are denied | `tests/live/sandbox-runtime.test.ts` | Enforce sandbox filesystem and network isolation |
+| supported / Agent Store | The mount reports `fuse.agent-store` through the mock helper | `tests/live/agent-store-runtime.test.ts` | Mount Agent Store with mock backend |
+| supported / cgroup | `GetResourceUsage` reports the cgroup v2 limits | `tests/live/cgroup-runtime.test.ts` | Report cgroup v2 resource limits |
+| supported / shutdown | Graceful shutdown releases listeners and daemon-owned children | `tests/live/shutdown-runtime.test.ts` | Shutdown without affecting unrelated processes |
 | core container | Read-only image serves authenticated HTTP Ping, PTY spawn, and native addons | `tests/container/core-image.test.ts` | Container proof |
 | desktop | Non-headless Chrome receives pointer and keyboard input, and recording is playable | `tests/desktop/desktop-runtime.test.ts` | Desktop proof |

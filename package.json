@@ -16,7 +16,6 @@
     "doctor": "npm run compile && node dist/project/tools/doctor.js",
     "provision": "npm run compile && node dist/project/tools/provision-runtime-tools.js",
     "preflight": "npm run compile && node dist/project/tools/preflight-host.js",
-    "proof:emit": "npm run compile && node dist/project/tools/emit-runtime-proof.js",
     "test:live": "npm run compile && node --test dist/project/tests/live/*.test.js",
     "recover": "npm run compile && node dist/project/tools/recover.js",
     "generate:contracts": "npm run compile && node dist/project/tools/generate-proto-contracts.js",

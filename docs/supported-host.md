@@ -1,15 +1,21 @@
 # Supported host deployment
 
-The core container in [container](container.md) is a lower-privilege profile. It
-does not become the supported profile. This page is the host-native recipe for
-`profiles.supported`. The GitHub-hosted `ubuntu-24.04` runtime-proof job is the
-automated exercise of this recipe. It records `hostScope: prepared-runner`.
-A runner that cannot represent a stricter security boundary is not silently
-treated as that boundary.
+Ubuntu 24.04 x86-64 is the reference distribution for
+`profiles.supported`. The GitHub-hosted `ubuntu-24.04` Runtime proof workflow
+executes this same host recipe and the live behavior tests.
+
+Distribution package versions are not part of the runtime contract. Ubuntu
+supplies the host packages; `runtime/contract.json` defines the capabilities
+the runtime requires; preflight checks those capabilities; the live workflow
+proves the resulting behavior. If another distribution becomes a real
+requirement, add it from an issue with its own acceptance run.
+
+The lower-privilege core container remains a separate profile; see
+[container](container.md).
 
 ## Procedure
 
-From a checkout that already contains the Git LFS objects:
+From a checkout that contains the Git LFS objects:
 
 ```sh
 npm ci --ignore-scripts --no-audit --no-fund
@@ -20,8 +26,10 @@ node dist/project/tools/build.js
 node dist/project/tools/provision-runtime-tools.js --profile supported
 ```
 
-`deploy/bootstrap-supported-host.sh` is the only step that changes host policy.
-`preflight-host` stays read-only. Startup uses the provisioned tree:
+`deploy/bootstrap-supported-host.sh` is allowed to prepare host policy.
+`preflight-host` is read-only.
+
+Start the provisioned runtime as a non-root user:
 
 ```sh
 EXEC_DAEMON_AUTH_TOKEN=... EXEC_DAEMON_PTY_AUTH_TOKEN=... \
@@ -29,60 +37,50 @@ EXEC_DAEMON_AUTH_TOKEN=... EXEC_DAEMON_PTY_AUTH_TOKEN=... \
   bin/exec-daemon serve --project-dir "$PWD" --rg-path dist/runtime/rg
 ```
 
-Provision verifies locked Node and tool bytes before `serve`. Do not start the
-daemon as root.
+Provision verifies the locked runtime Node and runtime-tool bytes before
+startup.
 
-## What is immutable
+## Runtime and writable state
 
-`dist/runtime/` after build and provision: the runtime Node binary, `rg`,
-`cursorsandbox`, `origin`, `cursor-agent-store-fuse`, `tmux-root`, and the
-installed application. Replace that tree by building and provisioning again,
-not by editing it in place.
+Treat `dist/runtime/` after build and provision as installed runtime content.
+Rebuild and reprovision it rather than editing it in place.
 
-## What is writable
+Writable locations are:
 
 | Path | Purpose |
 | --- | --- |
-| `CURSOR_EXEC_DAEMON_DATA_DIR` | `logs/`, `artifacts/`, `recording-staging/`, and `request-context-cache.json` |
+| `CURSOR_EXEC_DAEMON_DATA_DIR` | logs, artifacts, recording staging, request-context cache, and the daemon-owned `tmux.sock` |
 | project directory | agent workspace |
 | `/tmp` | temporary files |
 | home directory | sandbox policy state outside the data dir |
-| `/cursor/stores` | Agent Store FUSE mount, created by the bootstrap |
+| `/cursor/stores` | Agent Store FUSE mount point |
 
-The core image uses `/data` for the same data-dir contract. This host recipe
-uses whatever directory `CURSOR_EXEC_DAEMON_DATA_DIR` names.
+## Host capabilities
 
-## Host requirements
+The authoritative capability list is `runtime/contract.json` `host`.
+The Ubuntu bootstrap installs `bubblewrap`, `ffmpeg`, `fuse3`, and
+`xz-utils`, creates `/cursor/stores`, enables FUSE `user_allow_other`,
+and permits unprivileged user namespaces when the Ubuntu AppArmor sysctl is
+present.
 
-The authoritative list is `runtime/contract.json` `host`. The bootstrap installs
-`bubblewrap`, `ffmpeg`, `fuse3`, and `xz-utils`, creates `/cursor/stores`,
-appends `user_allow_other` to `/etc/fuse.conf` when it is missing, and sets
-`kernel.apparmor_restrict_unprivileged_userns=0` when that sysctl file exists.
-Those are the host changes. The recipe does not use `--privileged`,
-`docker.sock`, or a host filesystem bind.
+The supported profile requires a usable `/dev/fuse`, cgroup v2 at
+`/sys/fs/cgroup`, `fusermount3`, and a viable bubblewrap user-namespace
+probe. Preflight reports missing capabilities and does not mutate the host.
 
-`/dev/fuse` must be a character device. cgroup v2 must be mounted at
-`/sys/fs/cgroup` with `cgroup.controllers`. The sandbox backend is bubblewrap.
-Preflight passes only when the bubblewrap user-namespace probe succeeds and
-AppArmor is not actively restricting unprivileged user namespaces.
+The recipe does not require blanket container `--privileged`, a Docker socket,
+or a host-filesystem bind.
 
-## Agent Store
+## Agent Store, secrets, and shutdown
 
-The bootstrap does not mount a store. The provisioned
-`dist/runtime/cursor-agent-store-fuse` helper does. The default runtime proof
-uses `--backend-mode mock` and then unmounts with `fusermount3`. Direct mode is
-a separate local protocol proof, not a production backend. See
-[runtime](runtime.md).
+The provisioned `cursor-agent-store-fuse` helper owns Agent Store mounts.
+Runtime proof exercises both the deterministic mock backend and the local direct
+protocol fixture; neither claims the production remote service.
 
-## Secrets, cgroup, and shutdown
+Pass `EXEC_DAEMON_AUTH_TOKEN` and `EXEC_DAEMON_PTY_AUTH_TOKEN` through the
+environment or their `*_FILE` variants. Do not place secrets in argv.
 
-Pass `EXEC_DAEMON_AUTH_TOKEN` and `EXEC_DAEMON_PTY_AUTH_TOKEN` in the
-environment or through the `*_FILE` paths. Do not put them in argv, unit files,
-image layers, or proof artifacts. cgroup limits are properties of the service
-manager or the proof harness; the daemon reports the cgroup it is running in.
-Stop the daemon with `SIGTERM` and start it again. `SIGKILL` is only the
-fallback when it does not exit. The daemon's tmux server uses
-`$CURSOR_EXEC_DAEMON_DATA_DIR/tmux.sock` (`/opt/cursor/.exec-daemon/tmux.sock`
-when that directory is unset). Every tmux client and attach passes `-S` for
-that socket. Shutdown runs `kill-server` only against it, so another tmux
-server belonging to the same Unix user keeps running.
+Stop the daemon with `SIGTERM`. Its tmux service uses
+`$CURSOR_EXEC_DAEMON_DATA_DIR/tmux.sock` (falling back to
+`/opt/cursor/.exec-daemon/tmux.sock`), so shutdown removes only daemon-owned
+tmux state. The live shutdown test also proves an unrelated tmux server
+survives.

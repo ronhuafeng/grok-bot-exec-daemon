@@ -42,8 +42,6 @@ jobs:
         run: node dist/project/tools/generate-proto-contracts.js --check
       - name: Verify pinned snapshot
         run: node dist/project/tools/verify-snapshot.js
-      - name: Check redistribution inventory completeness
-        run: node dist/project/tools/check-redistribution.js
       - name: Check JavaScript and launcher syntax
         run: node dist/project/tools/check-syntax.js
       - name: Prepare test capsule and module scopes
