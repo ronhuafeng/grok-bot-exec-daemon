@@ -51,3 +51,16 @@ Sandbox and Agent Store stay optional. A host that wants them must add
 pass the matching device or capability. The core image does not grant those
 privileges. `npm run preflight -- --profile sandbox` and `--profile agent-store`
 describe the host side of that choice.
+
+
+## Cgroup resource reporting
+
+Container proof also starts the image with Docker-managed 1 GiB memory and
+200 mCPU limits. The test reads `memory.max` and `cpu.max` inside that real
+container cgroup, then requires `ControlService.GetResourceUsage` to report
+the same limits, a current sample, and cursor/history semantics. The normal
+core-image run, where machine resource monitoring is disabled, must return
+`failed_precondition`.
+
+Docker owns cgroup creation and placement for this proof; the test does not
+write GitHub runner `cgroup.procs` directly.

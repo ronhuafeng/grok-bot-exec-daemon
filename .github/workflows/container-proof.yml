@@ -34,7 +34,7 @@ jobs:
         run: node --experimental-strip-types tools/compile.ts
       - name: Build the core image from the locked manifests
         run: docker build -f deploy/Dockerfile -t exec-daemon-core:local .
-      - name: Prove the read-only core image
+      - name: Prove core image runtime and cgroup reporting
         run: node --test --test-reporter=spec dist/project/tests/container/core-image.test.js
         env:
           EXEC_DAEMON_IMAGE: exec-daemon-core:local
