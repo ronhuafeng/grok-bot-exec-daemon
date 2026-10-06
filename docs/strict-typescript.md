@@ -83,7 +83,7 @@ tests but cannot certify the complete artifact; report that limitation explicitl
 
 Offline checks do not by themselves prove a listening daemon. After the runtime
 is provisioned, Runtime proof calls `node --test` on the live files below.
-cgroup `GetResourceUsage` is covered by `tests/live/cgroup-runtime.test.ts`.
+cgroup `GetResourceUsage` is covered by Docker-managed limits in `tests/container/core-image.test.ts`.
 Browser computer-use and recording are covered by
 `tests/desktop/desktop-runtime.test.ts` on a non-headless Chrome window. The
 core container is covered by `tests/container/core-image.test.ts`. The Agent
@@ -104,7 +104,7 @@ Store proof uses the mock helper; it is not production storage proof. See
 | supported / Agent Store cleanup and liveness | Unmount failures fall through, and a hung FUSE probe kills only the matching pid | `tests/fuse-cleanup.test.ts`, `tests/fuse-liveness-recovery.test.ts` | Test offline runtime contracts |
 | supported / sandbox | A workspace write is allowed; an outside write and a local network connection are denied | `tests/live/sandbox-runtime.test.ts` | Enforce sandbox filesystem and network isolation |
 | supported / Agent Store | The mount reports `fuse.agent-store` through the mock helper | `tests/live/agent-store-runtime.test.ts` | Mount Agent Store with mock backend |
-| supported / cgroup | `GetResourceUsage` reports the cgroup v2 limits | `tests/live/cgroup-runtime.test.ts` | Report cgroup v2 resource limits |
 | supported / shutdown | Graceful shutdown releases listeners and daemon-owned children | `tests/live/shutdown-runtime.test.ts` | Shutdown without affecting unrelated processes |
-| core container | Read-only image serves authenticated HTTP Ping, PTY spawn, and native addons | `tests/container/core-image.test.ts` | Container proof |
+| core container | Read-only image serves authenticated HTTP Ping, PTY spawn, and native addons | `tests/container/core-image.test.ts` | Prove core image runtime and cgroup reporting |
+| core container / cgroup | Docker-managed memory/CPU limits are read from cgroup v2 and reported through `GetResourceUsage` with cursor/history semantics | `tests/container/core-image.test.ts` | Prove core image runtime and cgroup reporting |
 | desktop | Non-headless Chrome receives pointer and keyboard input, and recording is playable | `tests/desktop/desktop-runtime.test.ts` | Desktop proof |

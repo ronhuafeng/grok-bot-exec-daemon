@@ -54,7 +54,5 @@ jobs:
         run: node --test --test-reporter=spec dist/project/tests/live/agent-store-runtime.test.js
       - name: Exercise Agent Store direct protocol
         run: node --test --test-reporter=spec dist/project/tests/live/agent-store-direct.test.js
-      - name: Report cgroup v2 resource limits
-        run: node --test --test-reporter=spec dist/project/tests/live/cgroup-runtime.test.js
       - name: Shutdown without affecting unrelated processes
         run: node --test --test-reporter=spec dist/project/tests/live/shutdown-runtime.test.js
