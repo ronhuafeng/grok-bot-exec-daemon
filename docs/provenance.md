@@ -83,3 +83,21 @@ the recovered upstream-derived code, native artifacts and assets; reconcile
 component notices; decide licensing for newly authored project files; and
 document the supported build/runtime toolchain. No repository visibility,
 package publishing, release or deployment change is part of this conversion.
+
+## Three different records
+
+These stay separate:
+
+| Record | Question it answers |
+| --- | --- |
+| This provenance page and `vendor/snapshot.json` | Where the bytes came from |
+| `runtime-proof.json` | What a runtime proof run observed |
+| `runtime/redistribution.json` | Whether a release may ship each component |
+
+A checksum, a git tree id, `private: true`, or GitHub visibility does not move a
+component out of `unresolved`. `node dist/project/tools/check-redistribution.js`
+checks that every required class has a status. `node dist/project/tools/check-redistribution.js --public`
+fails while any packaged or recorded component is `unresolved`, `blocked`, or
+`internal`. Developer and runtime proofs keep using the captured artifacts; those
+proofs are not public-release evidence. Notices are indexed in
+[runtime/NOTICES.md](../runtime/NOTICES.md).
