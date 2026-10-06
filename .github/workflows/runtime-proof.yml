@@ -17,9 +17,6 @@ jobs:
     name: Linux x64 runtime
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      RUNTIME_PROOF_HOST_SCOPE: prepared-runner
-      RUNTIME_PROOF_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Check out exact revision
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -33,64 +30,31 @@ jobs:
           package-manager-cache: false
       - name: Install project metadata without lifecycle hooks
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Prepare the supported host
-        id: bootstrap
+      - name: Prepare Ubuntu 24.04 supported host
         run: deploy/bootstrap-supported-host.sh
       - name: Compile TypeScript
-        id: compile
         run: node --experimental-strip-types tools/compile.ts
-      - name: Check the executable host contract
-        id: preflight
+      - name: Verify supported host prerequisites
         run: node dist/project/tools/preflight-host.js --profile supported --scope prepared-runner
-      - name: Build the installed runtime
-        id: build
+      - name: Build installed runtime
         run: node dist/project/tools/build.js
       - name: Provision locked runtime tools
-        id: provision
         run: node dist/project/tools/provision-runtime-tools.js --profile supported
-      - name: Create proof report directory
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: mkdir -p proof-reports
-      - name: Native addons and PTY output
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/native-pty.junit.xml dist/project/tests/live/native-runtime.test.js dist/project/tests/live/pty-runtime.test.js
-      - name: Launcher and bundled tool behavior
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/launcher-tools.junit.xml dist/project/tests/live/daemon-runtime.test.js dist/project/tests/live/bundled-tools.test.js dist/project/tests/live/ripgrep-runtime.test.js
-      - name: Origin CLI through the daemon
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/origin.junit.xml dist/project/tests/live/origin-runtime.test.js
-      - name: HTTP and PTY authentication
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/server.junit.xml dist/project/tests/live/server-runtime.test.js dist/project/tests/live/pty-auth-runtime.test.js
-      - name: Sandbox filesystem and network confinement
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/sandbox.junit.xml dist/project/tests/live/sandbox-runtime.test.js
-      - name: Agent Store FUSE mount
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/agent-store.junit.xml dist/project/tests/live/agent-store-runtime.test.js
-      - name: Agent Store direct backend
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/agent-store-direct.junit.xml dist/project/tests/live/agent-store-direct.test.js
-      - name: Cgroup resource reporting
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/cgroup.junit.xml dist/project/tests/live/cgroup-runtime.test.js
-      - name: Shutdown and restart lifecycle
-        if: "${{ !cancelled() && steps.provision.outcome == 'success' }}"
-        run: node --test --test-reporter=spec --test-reporter=junit --test-reporter-destination=stdout --test-reporter-destination=proof-reports/shutdown.junit.xml dist/project/tests/live/shutdown-runtime.test.js
-      - name: Write the runtime conformance record
-        if: always()
-        env:
-          STAGE_BOOTSTRAP: ${{ steps.bootstrap.outcome }}
-          STAGE_COMPILE: ${{ steps.compile.outcome }}
-          STAGE_PREFLIGHT: ${{ steps.preflight.outcome }}
-          STAGE_BUILD: ${{ steps.build.outcome }}
-          STAGE_PROVISION: ${{ steps.provision.outcome }}
-        run: deploy/emit-runtime-proof.sh
-      - name: Upload the runtime conformance record
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: runtime-proof
-          path: runtime-proof.json
-          if-no-files-found: error
+      - name: Load native addons and open a PTY
+        run: node --test --test-reporter=spec dist/project/tests/live/native-runtime.test.js dist/project/tests/live/pty-runtime.test.js
+      - name: Run launcher and locked command-line tools
+        run: node --test --test-reporter=spec dist/project/tests/live/daemon-runtime.test.js dist/project/tests/live/bundled-tools.test.js dist/project/tests/live/ripgrep-runtime.test.js
+      - name: Expose Origin through daemon PTY
+        run: node --test --test-reporter=spec dist/project/tests/live/origin-runtime.test.js
+      - name: Authenticate HTTP and PTY listeners
+        run: node --test --test-reporter=spec dist/project/tests/live/server-runtime.test.js dist/project/tests/live/pty-auth-runtime.test.js
+      - name: Enforce sandbox filesystem and network isolation
+        run: node --test --test-reporter=spec dist/project/tests/live/sandbox-runtime.test.js
+      - name: Mount Agent Store with mock backend
+        run: node --test --test-reporter=spec dist/project/tests/live/agent-store-runtime.test.js
+      - name: Exercise Agent Store direct protocol
+        run: node --test --test-reporter=spec dist/project/tests/live/agent-store-direct.test.js
+      - name: Report cgroup v2 resource limits
+        run: node --test --test-reporter=spec dist/project/tests/live/cgroup-runtime.test.js
+      - name: Shutdown without affecting unrelated processes
+        run: node --test --test-reporter=spec dist/project/tests/live/shutdown-runtime.test.js

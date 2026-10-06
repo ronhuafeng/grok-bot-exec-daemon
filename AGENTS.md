@@ -29,28 +29,23 @@ Do not read the whole documentation tree before routine edits.
 
 ## Verification and acceptance
 
-Verification is property-oriented. The project property is the subject of the
-claim; tests, local fixtures, Docker invocations, and GitHub Actions are proof
-harnesses used to obtain evidence.
+Verification is property-oriented. A green semantic workflow is accepted proof
+for the scoped properties its native steps directly observe.
 
-- State the property or observable outcome before choosing a test or workflow.
-- Do not infer that a property is false merely because a proof harness failed.
-  First distinguish a property contradiction from environment, fixture,
-  provisioning, orchestration, or reporting failure.
-- Do not treat a green workflow as proof of behavior it did not directly observe.
-- Keep property status, evidence strength, and automation status separate when
-  they differ.
-- Prefer direct observable witnesses: process results, protocol responses,
-  filesystem effects, browser events, recordings, native loads, or equivalent
-  behavior.
-- For negative properties, distinguish the intended denial from generic setup or
-  startup failure. A nonzero exit alone is usually insufficient.
-- Local acceptance evidence is valid when it records the revision, relevant
-  environment/tool identities, command or fixture, observable result, and known
-  limits. CI improves repeatability; it is not the truth authority.
-- A skipped, blocked, or not-run required check is not a pass.
-- Match claims to evidence narrowly. If a stronger property matters, add a
-  stronger witness rather than broadening the interpretation of existing proof.
+- State the observable property before choosing a test.
+- Run the real command, protocol, filesystem, browser, native, or process
+  behavior whenever practical.
+- Let the native command exit status decide the workflow step. Do not add a
+  second verdict, summary schema, or proof-of-proof layer.
+- A green workflow proves only what its steps actually exercised.
+- A red workflow means that run did not prove the property. Diagnose whether
+  the behavior contradicted the property or whether environment, provisioning,
+  fixture, or orchestration failed before reaching it.
+- A skipped required behavior is not a pass.
+- For negative properties, distinguish the intended denial from generic setup
+  or startup failure.
+- Match claims to evidence narrowly. Add a stronger witness only when a stronger
+  current property matters.
 
 See [docs/verification-methodology.md](docs/verification-methodology.md) for the
 full methodology.
