@@ -1,6 +1,6 @@
 import { sha256 } from './runtime-provision.js';
 
-export const RUNTIME_PROOF_SCHEMA_VERSION = 3;
+export const RUNTIME_PROOF_SCHEMA_VERSION = 4;
 
 const commitSha = /^[0-9a-f]{40}$/;
 const contentSha = /^[0-9a-f]{64}$/;
@@ -8,10 +8,12 @@ const apparmorValues = new Set(['0', '1', 'unavailable', 'unreadable', 'unexpect
 const fuseValues = new Set(['enabled', 'disabled', 'unavailable', 'unreadable']);
 const viabilityValues = new Set(['viable', 'not-viable', 'unavailable', 'unreadable']);
 const hostScopes = new Set(['observed-host', 'prepared-runner']);
-const toolStates = new Set(['verified', 'absent', 'mismatch']);
+const toolStates = new Set(['verified', 'absent', 'mismatch', 'unavailable']);
+const nodeStates = new Set(['produced', 'unavailable']);
 
 export type ProofHostScope = 'observed-host' | 'prepared-runner';
-export type ToolState = 'verified' | 'absent' | 'mismatch';
+export type ToolState = 'verified' | 'absent' | 'mismatch' | 'unavailable';
+export type NodeState = 'produced' | 'unavailable';
 export type CheckStatus = 'passed' | 'failed' | 'skipped' | 'not-run' | 'prerequisite-blocked';
 export type ReportingStatus = 'ok' | 'metadata-failed';
 
@@ -53,16 +55,22 @@ export interface RuntimeProofHost {
   sandboxBackend: 'bubblewrap';
   sandboxBackendViable: 'viable' | 'not-viable' | 'unavailable' | 'unreadable';
 }
+export interface RuntimeProofNode {
+  version: string | null;
+  modules: number | null;
+  state: NodeState;
+}
 export interface RuntimeProof {
-  schemaVersion: 3;
+  schemaVersion: 4;
   sourceCommit: string;
   testedCommit: string;
   workflowRunId: string | null;
   workflowRunAttempt: string | null;
   profile: 'supported';
+  failureStage: string | null;
   hostScope: ProofHostScope;
   host: RuntimeProofHost;
-  node: { version: string; modules: number };
+  node: RuntimeProofNode;
   tools: RuntimeProofTool[];
   checks: RuntimeProofCheck[];
   capabilities: RuntimeProofCapability[];
@@ -74,6 +82,7 @@ export interface RuntimeProof {
 export interface ClassifiableTool {
   id: string;
   version: string;
+  optional?: boolean;
   sha256?: string;
   sources?: readonly { kind: string; sha256?: string }[];
 }
@@ -90,8 +99,9 @@ export interface RuntimeProofInput {
   workflowRunAttempt: string | null;
   profile: 'supported';
   hostScope: ProofHostScope;
+  failureStage?: string | null;
   host: RuntimeProofHost;
-  node: { version: string; modules: number };
+  node: RuntimeProofNode;
   tools: readonly RuntimeProofTool[];
   reports: readonly RuntimeProofReportInput[];
   reporting?: RuntimeProofReporting;
@@ -113,7 +123,8 @@ export function passedChecks(checks: readonly RuntimeProofCheck[]): RuntimeProof
 export function classifyTool(lockEntry: ClassifiableTool, provisionedBytes: Uint8Array | undefined): RuntimeProofTool {
   const expectedSha256 = expectedToolSha256(lockEntry);
   if (provisionedBytes === undefined) {
-    return { id: lockEntry.id, version: lockEntry.version, expectedSha256, provisionedSha256: null, state: 'absent' };
+    const state: ToolState = lockEntry.optional === true ? 'absent' : 'unavailable';
+    return { id: lockEntry.id, version: lockEntry.version, expectedSha256, provisionedSha256: null, state };
   }
   const provisionedSha256 = sha256(provisionedBytes);
   return {
@@ -125,11 +136,12 @@ export function classifyTool(lockEntry: ClassifiableTool, provisionedBytes: Uint
   };
 }
 
-/** Required tools must be verified. An optional tool may be absent; a lock hash alone is not verification. */
+/** Required tools must be verified. Optional absence is not the same as a required identity that was never produced. */
 export function assertProducedToolIdentity(tools: readonly { id: string; optional: boolean; state: ToolState }[]): void {
   for (const tool of tools) {
     if (tool.state === 'verified') continue;
     if (tool.optional && tool.state === 'absent') continue;
+    if (tool.state === 'unavailable') throw new Error(`Required runtime identity could not be produced: ${tool.id}`);
     throw new Error(`Runtime proof tool is not verified: ${tool.id} (${tool.state})`);
   }
 }
@@ -141,9 +153,9 @@ export function buildRuntimeProof(input: RuntimeProofInput): RuntimeProof {
   if (input.profile !== 'supported') throw new Error('Runtime proof profile is incomplete');
   if (!hostScopes.has(input.hostScope)) throw new Error('Runtime proof host scope is incomplete');
   assertHost(input.host);
-  if (!/^v\d+\.\d+\.\d+$/.test(input.node.version) || !Number.isInteger(input.node.modules)) {
-    throw new Error('Runtime proof Node identity is incomplete');
-  }
+  assertNode(input.node);
+  const failureStage = input.failureStage ?? null;
+  if (failureStage !== null && failureStage.trim() === '') throw new Error('Runtime proof failure stage is incomplete');
   if (input.workflowRunId !== null && input.workflowRunId === '') throw new Error('Runtime proof workflow run id is incomplete');
   if (input.workflowRunAttempt !== null && input.workflowRunAttempt === '') throw new Error('Runtime proof workflow run attempt is incomplete');
   if (input.tools.length === 0) throw new Error('Runtime proof tool identities are incomplete');
@@ -180,9 +192,10 @@ export function buildRuntimeProof(input: RuntimeProofInput): RuntimeProof {
     workflowRunId: input.workflowRunId,
     workflowRunAttempt: input.workflowRunAttempt,
     profile: 'supported',
+    failureStage,
     hostScope: input.hostScope,
     host: { ...input.host },
-    node: { version: input.node.version, modules: input.node.modules },
+    node: { version: input.node.version, modules: input.node.modules, state: input.node.state },
     tools: input.tools.map(tool => ({ ...tool })),
     checks,
     capabilities,
@@ -228,11 +241,22 @@ function assertHost(host: RuntimeProofHost): void {
   }
 }
 
+function assertNode(node: RuntimeProofNode): void {
+  if (!nodeStates.has(node.state)) throw new Error('Runtime proof Node identity is incomplete');
+  if (node.state === 'unavailable') {
+    if (node.version !== null || node.modules !== null) throw new Error('Runtime proof Node identity is incomplete');
+    return;
+  }
+  if (node.version === null || !/^v\d+\.\d+\.\d+$/.test(node.version) || !Number.isInteger(node.modules)) {
+    throw new Error('Runtime proof Node identity is incomplete');
+  }
+}
+
 function assertTool(tool: RuntimeProofTool): void {
   if (tool.id === '' || tool.version === '' || !contentSha.test(tool.expectedSha256) || !toolStates.has(tool.state)) {
     throw new Error('Runtime proof tool identities are incomplete');
   }
-  if (tool.state === 'absent') {
+  if (tool.state === 'absent' || tool.state === 'unavailable') {
     if (tool.provisionedSha256 !== null) throw new Error('Runtime proof tool identities are incomplete');
     return;
   }
