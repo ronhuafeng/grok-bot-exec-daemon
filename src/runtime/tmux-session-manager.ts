@@ -41,10 +41,17 @@ export interface TmuxPtyManager {
     spawn(args: { process: TmuxProcess; cwd: string; env: Record<string, string>; cols: number; rows: number }): string;
 }
 export type ExecTmux = (tmuxArgs: string[], env?: NodeJS.ProcessEnv) => Promise<string>;
+/** Daemon-owned tmux socket. Other servers for this Unix user are never selected. */
+export function resolveTmuxServerSocket(dataDir: string | undefined): string {
+    const trimmed = dataDir?.trim();
+    const directory = trimmed !== undefined && trimmed !== "" ? trimmed : "/opt/cursor/.exec-daemon";
+    return nodePath.join(directory, "tmux.sock");
+}
 export interface TmuxSessionManagerArgs {
     managedEnvironment?: ManagedEnvironment;
     tmuxBinaryPath?: string;
     tmuxConfigPath?: string;
+    serverSocket?: string;
     execTmux?: ExecTmux;
     workspacePath: string;
     ptyManager: TmuxPtyManager;
@@ -148,14 +155,24 @@ export function toExactSessionTarget(sessionName: string) {
 export function toExactSessionPaneTarget(sessionName: string) {
     return `${toExactSessionTarget(sessionName)}:`;
 }
-export function buildTmuxGlobalArgs(tmuxConfigPath: string | undefined) {
-    return tmuxConfigPath ? [TMUX_UTF8_FLAG, "-f", tmuxConfigPath] : [TMUX_UTF8_FLAG];
+export function buildTmuxGlobalArgs(tmuxConfigPath: string | undefined, serverSocket?: string) {
+    const args = [TMUX_UTF8_FLAG];
+    if (serverSocket !== undefined && serverSocket !== "") {
+        args.push("-S", serverSocket);
+    }
+    if (tmuxConfigPath) {
+        args.push("-f", tmuxConfigPath);
+    }
+    return args;
 }
 export function shellSingleQuote(value: string) {
     return `'${value.replace(/'/g, "'\\''")}'`;
 }
-export function buildShellEnvironmentRefreshCommand(args: { tmuxBinaryPath: string; tmuxConfigPath?: string; sessionName: string }) {
+export function buildShellEnvironmentRefreshCommand(args: { tmuxBinaryPath: string; tmuxConfigPath?: string; serverSocket?: string; sessionName: string }) {
     const commandParts = [shellSingleQuote(args.tmuxBinaryPath)];
+    if (args.serverSocket !== undefined && args.serverSocket !== "") {
+        commandParts.push("-S", shellSingleQuote(args.serverSocket));
+    }
     if (args.tmuxConfigPath) {
         commandParts.push("-f", shellSingleQuote(args.tmuxConfigPath));
     }
@@ -247,6 +264,7 @@ export class TmuxSessionManager {
     managedEnvironment;
     tmuxBinaryPath;
     tmuxConfigPath;
+    serverSocket: string;
     execTmux: ExecTmux;
     constructor(args: TmuxSessionManagerArgs) {
         this.managedEnvironment = args.managedEnvironment ?? new ManagedEnvironmentDependency();
@@ -258,9 +276,11 @@ export class TmuxSessionManager {
             importMetaUrl: "file:///workdir/packages/exec-daemon/src/tmux-session-manager.ts",
             tmuxConfigPath: args.tmuxConfigPath,
         });
+        this.serverSocket = args.serverSocket ?? resolveTmuxServerSocket(process.env.CURSOR_EXEC_DAEMON_DATA_DIR);
         const execTmux: ExecTmux = args.execTmux ??
             (async (tmuxArgs, env) => {
-                const fullArgs = [...buildTmuxGlobalArgs(this.tmuxConfigPath), ...tmuxArgs];
+                nodeFs.mkdirSync(nodePath.dirname(this.serverSocket), { recursive: true, mode: 0o700 });
+                const fullArgs = [...buildTmuxGlobalArgs(this.tmuxConfigPath, this.serverSocket), ...tmuxArgs];
                 // The first client command forks the tmux *server*, which daemonizes
                 // and then forks every session, pane, and workload. spawnWorkload
                 // places the child in the workload cgroup when armed (and that shim
@@ -609,6 +629,7 @@ export class TmuxSessionManager {
         const refreshCommand = buildShellEnvironmentRefreshCommand({
             tmuxBinaryPath: this.tmuxBinaryPath,
             tmuxConfigPath: this.tmuxConfigPath,
+            serverSocket: this.serverSocket,
             sessionName,
         });
         await this.execTmux(["send-keys", "-l", "-t", targetPane, refreshCommand]);
@@ -620,11 +641,12 @@ export class TmuxSessionManager {
         if (!session) {
             return undefined;
         }
+        nodeFs.mkdirSync(nodePath.dirname(this.serverSocket), { recursive: true, mode: 0o700 });
         const ptyId = this.ptyManager.spawn({
             process: {
                 shell: this.tmuxBinaryPath,
                 args: [
-                    ...buildTmuxGlobalArgs(this.tmuxConfigPath),
+                    ...buildTmuxGlobalArgs(this.tmuxConfigPath, this.serverSocket),
                     "attach-session",
                     "-t",
                     toExactSessionTarget(session.sessionName),
@@ -645,9 +667,8 @@ export class TmuxSessionManager {
         };
     }
     /**
-     * Stop the tmux server started by this manager. `execTmux` uses the daemon
-     * environment, including `TMUX_TMPDIR`, so servers on other sockets are untouched.
-     * A server that never started is a no-op.
+     * Stop only the tmux server bound to this manager's `-S` socket.
+     * A server that never started is a no-op. Sessions on any other socket stay up.
      */
     async dispose() {
         try {

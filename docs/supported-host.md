@@ -81,4 +81,8 @@ environment or through the `*_FILE` paths. Do not put them in argv, unit files,
 image layers, or proof artifacts. cgroup limits are properties of the service
 manager or the proof harness; the daemon reports the cgroup it is running in.
 Stop the daemon with `SIGTERM` and start it again. `SIGKILL` is only the
-fallback when it does not exit.
+fallback when it does not exit. The daemon's tmux server uses
+`$CURSOR_EXEC_DAEMON_DATA_DIR/tmux.sock` (`/opt/cursor/.exec-daemon/tmux.sock`
+when that directory is unset). Every tmux client and attach passes `-S` for
+that socket. Shutdown runs `kill-server` only against it, so another tmux
+server belonging to the same Unix user keeps running.

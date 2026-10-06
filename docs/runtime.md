@@ -103,9 +103,10 @@ See [desktop](desktop.md), [container](container.md), and [supported host](suppo
 ## Writable state
 
 `CURSOR_EXEC_DAEMON_DATA_DIR` is the mountable root for daemon-owned mutable
-files: `logs/`, `artifacts/`, `recording-staging/`, and
-`request-context-cache.json`. Without it, those files keep their compatibility
-locations under `/opt/cursor`. Agent Store mounts and the upstream sandbox
+files: `logs/`, `artifacts/`, `recording-staging/`,
+`request-context-cache.json`, and `tmux.sock`. Without it, those files keep
+their compatibility locations under `/opt/cursor`. The tmux socket is private
+to this daemon: client, attach, and `kill-server` all pass `-S` for that path. Agent Store mounts and the upstream sandbox
 policy directory under the user home stay outside this data root. HTTP and PTY
 listeners bind to all interfaces unless `--bind-host` or `EXEC_DAEMON_BIND_HOST`
 is set. The PTY listener uses that host unless `--pty-bind-host` or

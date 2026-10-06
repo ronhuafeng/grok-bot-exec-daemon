@@ -20,7 +20,7 @@ import { startServer, startPtyHostWebSocketServer } from "./server.js";
 import { AUTH_TOKEN_ENV_VAR, AUTH_TOKEN_FILE_ENV_VAR, BIND_HOST_ENV_VAR, PTY_AUTH_TOKEN_ENV_VAR, PTY_AUTH_TOKEN_FILE_ENV_VAR, PTY_BIND_HOST_ENV_VAR, decidePtyListener, resolveAuthSecret, resolveBindHost } from "./runtime-ingress.js";
 import { EXEC_DAEMON_DATA_DIR_ENV_VAR, setupDaemon } from "./setup.js";
 import { withStartupTraceparent } from "./startup-traceparent.js";
-import { TmuxSessionManager } from "./tmux-session-manager.js";
+import { resolveTmuxServerSocket, TmuxSessionManager } from "./tmux-session-manager.js";
 import { initTracing, shutdownTracing } from "./tracing.js";
 import { discoverExecDaemonWorkspacePaths } from "./workspace-discovery.js";
 import type { Context } from "../interop/contracts/context.js";
@@ -406,6 +406,7 @@ async function start(argv: string[]): Promise<void> {
                 ptyManager,
                 tmuxBinaryPath: opts.tmuxPath,
                 tmuxConfigPath: opts.tmuxConfPath,
+                serverSocket: resolveTmuxServerSocket(dataDir),
             })
             : undefined;
         const machineResourceMonitor = new MachineResourceMonitor({
